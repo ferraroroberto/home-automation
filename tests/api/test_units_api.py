@@ -158,6 +158,25 @@ def test_units_carry_the_engines_idle_flag(client: TestClient, monkeypatch) -> N
     assert resp.json()["units"][0]["idle"] is True
 
 
+def test_schedule_routes_return_summary_and_entries_only(client: TestClient, monkeypatch) -> None:
+    """GET and PUT answer with the summary and ``entries``; no flat single-schedule fields."""
+    from src.devices.hvac_automation import ScheduleEntry
+
+    entry = ScheduleEntry(id="s1", enabled=True, time="07:30", operation_mode="Heat",
+                          set_temperature=21.0)
+    monkeypatch.setattr("app.webapp.routers.units.load_schedules", lambda: {"u1": [entry]})
+    monkeypatch.setattr("app.webapp.routers.units.set_schedules", lambda uid, entries: None)
+
+    got = client.get("/api/units/u1/schedule").json()
+    put = client.put("/api/units/u1/schedule", json={"entries": [{"id": "s1", "time": "07:30"}]})
+
+    assert put.status_code == 200
+    for body in (got, put.json()):
+        assert set(body) == {"enabled", "count", "next_time", "time", "entries"}
+        assert body["entries"][0]["id"] == "s1"
+    assert got["entries"][0]["set_temperature"] == 21.0
+
+
 # ── Issue #247: control-unit input validation + temperature clamping ───
 
 

@@ -1,16 +1,14 @@
 """Shared read/clean helpers for weekly schedule-entry JSON stores.
 
-The ``_read_json`` / ``_save`` / ``_safe_id`` / ``_clean_time`` / ``_clean_days``
-helpers below were duplicated verbatim across :mod:`src.wake_alarms` and
-:mod:`src.security.security_schedules` (the read/save pair a third time in
-:mod:`src.devices.hvac_automation`, per its README note that ``wake_alarms`` was
-"cloned from security_schedules.py's atomic store"). Centralized here;
-callers keep their own dataclass shape and entry-cleaning logic — only the
-read/save mechanics, the list-of-entries load/save pair
-(:func:`load_entry_list` / :func:`save_entry_list`) and the
-id/time/days field cleaners are shared, plus the due-window check
-(:func:`daily_due`) and the persisted once-a-day fire latch
-(:class:`DailyFireLatch`) the schedule engines fire through.
+This module owns the mechanics every schedule and prefs store shares: the
+JSON read/save pair (:func:`read_json` / :func:`save_json`), the
+list-of-entries load/save pair (:func:`load_entry_list` /
+:func:`save_entry_list`), the id/time/date/days field cleaners
+(:func:`safe_id`, :func:`clean_time`, :func:`clean_date`, :func:`clean_days`),
+the due-window check (:func:`daily_due`) and the persisted once-a-day fire
+latch (:class:`DailyFireLatch`, configured by a :class:`FireLatchPolicy`) the
+schedule engines fire through. Callers keep their own dataclass shape and
+entry-cleaning logic.
 """
 
 from __future__ import annotations

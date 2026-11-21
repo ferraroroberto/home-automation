@@ -693,7 +693,6 @@ function normalizeScheduleEntries(body) {
   let raw = [];
   if (Array.isArray(body)) raw = body;
   else if (body && Array.isArray(body.entries)) raw = body.entries;
-  else if (body && (body.enabled === true || body.time || body.operation_mode || body.set_temperature != null)) raw = [body];
   return raw.map(function (entry, idx) {
     return Object.assign({ id: 'schedule-' + (idx + 1), enabled: true, time: '08:00', power: true }, entry);
   });
