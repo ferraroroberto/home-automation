@@ -9,8 +9,9 @@ command runs both and routes the browser suite proportionately to the diff:
 & .\scripts\verify-before-ship.ps1
 ```
 
-Byte-compiles the repo, runs the static and docs ratchets and the backend suite
-unconditionally, then
+Byte-compiles the repo, runs every ratchet (static, docs, comment, structure,
+instruction, doc-refs, dead-code, conventions, runtime-write, usage-track and
+ux-surface) and the backend suite unconditionally, then
 classifies the branch's changed files against `.fleet.toml`'s `[e2e]` table
 (`scripts/classify_e2e.py`, vendored byte-identical from `project-scaffolding`)
 and runs a browser slice proportionate to the diff: a backend/docs/meta-only
