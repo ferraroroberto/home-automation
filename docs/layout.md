@@ -54,7 +54,7 @@ home-automation/
 
 ## Tests
 
-- API tests go in `tests/api/`, or its `network/`, `presence/` or `security/` subpackage for those domains' routes: they drive a route through `TestClient` with the cloud fetchers monkeypatched.
+- API tests go in `tests/api/`, or its `network/`, `presence/`, `security/` or `webapp/` subpackage for those domains' routes (`webapp/` holds the app-wide surfaces, such as the build readout's restart): they drive a route through `TestClient` with the cloud fetchers monkeypatched.
 - Unit tests over `src/` domain logic go in the domain subpackage of `tests/` that owns the module (`security/`, `presence/`, `network/`, `energy/`, `devices/`, `voice/`). A ratchet gate test goes in `tests/ratchets/`, a test of the e2e harness's helpers in `tests/harness/`. Only cross-cutting tests (repo-wide guards, the webapp core, shared stores) sit at the top of `tests/`. Each subpackage has an `__init__.py`, and its name must not shadow an importable package, because pytest puts `tests/` on `sys.path`.
 - Browser tests go in `tests/e2e/`. Its `conftest.py` holds the harness (server boot, browser lifecycle, collection hooks); a new API-stub fixture goes in `tests/e2e/fixtures/<area>.py` and is imported in `conftest.py`.
 
