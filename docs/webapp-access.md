@@ -24,6 +24,9 @@ webapp (`tray.bat --restart`, or `webapp.bat`) and open
 > `gen_tailscale_cert.py --check` on startup, which re-issues the cert only
 > when it is a `.ts.net` cert expiring within 30 days (a no-op otherwise). The
 > tray-owned webapp self-heals on its next restart; `webapp.bat` does the same.
+> A cert file that cannot be read (corrupt PEM, `cryptography` missing) is
+> reported as unknown, not as healthy: `--check` prints a `[WARN]` and exits 1,
+> and the tray logs it as a failed renewal check.
 
 Plain desktop access on the PC itself uses `http://localhost:8447`
 (`https://localhost:8447` would warn — the cert is for the `.ts.net` name, not
