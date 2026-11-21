@@ -410,3 +410,43 @@ def test_rollup_separates_each_series(tmp_path: Path) -> None:
     assert rolls[("u1", "room_temperature")]["avg_num"] == 20.0
     assert rolls[("u2", "room_temperature")]["avg_num"] == 30.0
     assert rolls[("p1", "power_w")]["domain"] == "plug"
+
+
+def test_record_event_quietly_swallows_a_store_failure(monkeypatch) -> None:
+    def boom(*_a, **_k):
+        raise sqlite3.OperationalError("disk I/O error")
+
+    monkeypatch.setattr(T, "record_event", boom)
+    T.record_event_quietly("plug", "plug_on", entity_id="dev-1")  # must not raise
+
+
+def test_record_event_quietly_forwards_the_arguments(monkeypatch) -> None:
+    seen: list[tuple] = []
+    monkeypatch.setattr(T, "record_event", lambda *a, **k: seen.append((a, k)))
+    T.record_event_quietly("plug", "plug_on", entity_id="dev-1", outcome="ok")
+    assert seen == [(("plug", "plug_on"), {"entity_id": "dev-1", "outcome": "ok"})]
+
+
+def test_no_hand_rolled_best_effort_wrapper_around_record_event() -> None:
+    """A ``try: telemetry.record_event(...) except Exception`` is the one shape
+    ``record_event_quietly`` replaces; a new copy must call it instead."""
+    import ast
+
+    root = Path(__file__).resolve().parents[1]
+    offenders: list[str] = []
+    for path in [*(root / "src").rglob("*.py"), *(root / "app").rglob("*.py")]:
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if not isinstance(node, ast.Try) or len(node.body) != 1:
+                continue
+            stmt = node.body[0]
+            call = stmt.value if isinstance(stmt, ast.Expr) else None
+            if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)):
+                continue
+            if call.func.attr != "record_event":
+                continue
+            if any(
+                h.type is None or (isinstance(h.type, ast.Name) and h.type.id == "Exception")
+                for h in node.handlers
+            ):
+                offenders.append(f"{path.relative_to(root)}:{node.lineno}")
+    assert not offenders, f"use telemetry.record_event_quietly: {offenders}"

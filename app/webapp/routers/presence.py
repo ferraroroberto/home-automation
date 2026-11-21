@@ -26,7 +26,7 @@ from pydantic import BaseModel
 
 from app.webapp import read_snapshot
 from app.webapp._env import _env_int
-from app.webapp.presence_refresher import get_cache, refresh_once
+from app.webapp.presence_refresher import get_cache, refresh_interval_s, refresh_once
 from src.location_config import (
     LocationConfig,
     load_location_config,
@@ -187,7 +187,7 @@ def _presence_payload(entities: list[PresenceEntity]) -> Dict[str, Any]:
             "detail": cache.detail,
             "accounts": [asdict(account) for account in cache.accounts],
             "refreshed_at": cache.refreshed_at.isoformat() if cache.refreshed_at else None,
-            "refresh_interval_s": max(60, _env_int("PRESENCE_ICLOUD_REFRESH_INTERVAL_S", 900)),
+            "refresh_interval_s": refresh_interval_s(),
         },
         "automation": asdict(load_automation_config()),
         "kids_home_override": load_kids_home_override(),

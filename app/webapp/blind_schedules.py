@@ -41,6 +41,7 @@ from dotenv import load_dotenv
 
 from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop, spawn_background_task
+from src import telemetry
 from src._schedule_store import FIRE_SKIPPED, DailyFireLatch, FireLatchPolicy, daily_due
 from src.devices.blind_automation import (
     BlindOutcome,
@@ -108,19 +109,14 @@ def _record_event(
     action: str, entity_id: str, source: str, outcome: str, payload: Dict[str, Any]
 ) -> None:
     """Best-effort telemetry event, like the plug toggle's."""
-    try:
-        from src import telemetry
-
-        telemetry.record_event(
-            "blind",
-            "blind_" + action,
-            entity_id=entity_id,
-            source=source,
-            outcome=outcome,
-            payload=payload,
-        )
-    except Exception:  # noqa: BLE001 — telemetry is best-effort
-        logger.debug("telemetry blind event skipped", exc_info=True)
+    telemetry.record_event_quietly(
+        "blind",
+        "blind_" + action,
+        entity_id=entity_id,
+        source=source,
+        outcome=outcome,
+        payload=payload,
+    )
 
 
 def _record(

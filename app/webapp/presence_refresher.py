@@ -143,7 +143,8 @@ def _retry_backoff_s() -> int:
     return max(60, _env_int("PRESENCE_ICLOUD_RETRY_BACKOFF_S", _RETRY_BACKOFF_S_DEFAULT))
 
 
-def _refresh_interval_s() -> int:
+def refresh_interval_s() -> int:
+    """Seconds between iCloud refreshes — the loop's cadence and what the API reports."""
     return max(
         60, _env_int("PRESENCE_ICLOUD_REFRESH_INTERVAL_S", _REFRESH_INTERVAL_S_DEFAULT)
     )
@@ -572,5 +573,5 @@ def start_presence_refresher() -> Optional[asyncio.Task]:
     if not _env_bool("PRESENCE_ICLOUD_REFRESH_ENABLED", True):
         logger.info("ℹ️ Presence diagnostics refresher disabled")
         return None
-    interval_s = _refresh_interval_s()
+    interval_s = refresh_interval_s()
     return asyncio.create_task(_run(interval_s), name="presence-refresher")

@@ -103,17 +103,14 @@ async def _run_alarm(action: str, scene_id: str) -> Dict[str, Any]:
 
 def _record_scene_event(scene_id: str, steps: List[Dict[str, Any]]) -> None:
     failed = [s["kind"] for s in steps if s.get("error")]
-    try:
-        telemetry.record_event(
-            "scene",
-            scene_id,
-            entity_id=scene_id,
-            source="manual",
-            outcome="error" if failed else "ok",
-            payload={"failed": failed} if failed else None,
-        )
-    except Exception:  # noqa: BLE001 — telemetry is best-effort
-        logger.debug("telemetry scene event skipped", exc_info=True)
+    telemetry.record_event_quietly(
+        "scene",
+        scene_id,
+        entity_id=scene_id,
+        source="manual",
+        outcome="error" if failed else "ok",
+        payload={"failed": failed} if failed else None,
+    )
 
 
 @router.post("/api/scenes/{scene_id}")

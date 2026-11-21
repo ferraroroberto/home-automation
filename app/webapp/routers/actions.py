@@ -12,7 +12,6 @@ same underlying devices (e.g. a tap on the Security tab, which goes through
 
 from __future__ import annotations
 
-import logging
 from contextlib import asynccontextmanager
 from typing import Any, Dict, Optional
 
@@ -30,7 +29,6 @@ from src.quick_action_config import QuickActionConfigError
 from src.security.risco_client import RiscoCommandError, RiscoConfigError
 from src.voice.ha_client import HaClientError
 
-logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -72,17 +70,14 @@ async def _http_session(request: Request):
 
 
 def _record_action_event(action_id: str, actor: str, outcome: str, error: Optional[str]) -> None:
-    try:
-        telemetry.record_event(
-            "action",
-            action_id,
-            entity_id=action_id,
-            source=actor,
-            outcome=outcome,
-            payload={"error": error} if error else None,
-        )
-    except Exception:  # noqa: BLE001 — telemetry is best-effort
-        logger.debug("telemetry action event skipped", exc_info=True)
+    telemetry.record_event_quietly(
+        "action",
+        action_id,
+        entity_id=action_id,
+        source=actor,
+        outcome=outcome,
+        payload={"error": error} if error else None,
+    )
 
 
 @router.post("/api/actions/{action_id}")

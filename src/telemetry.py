@@ -340,6 +340,18 @@ def record_event(
         conn.commit()
 
 
+def record_event_quietly(domain: str, event_type: str, **kwargs: Any) -> None:
+    """:func:`record_event` that never raises — telemetry must not break the action it records.
+
+    Takes the same arguments; a failure is logged at debug and swallowed, so
+    actuation paths call this one and only startup/maintenance code the raising form.
+    """
+    try:
+        record_event(domain, event_type, **kwargs)
+    except Exception:  # noqa: BLE001 — telemetry is best-effort
+        logger.debug("telemetry %s/%s event skipped", domain, event_type, exc_info=True)
+
+
 # --------------------------------------------------------------- reads
 def _like_escape(value: str) -> str:
     """Escape SQLite LIKE wildcards so a literal ``%``/``_`` isn't a wildcard."""

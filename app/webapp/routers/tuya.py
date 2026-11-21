@@ -33,6 +33,7 @@ from app.webapp.routers._helpers import (
     make_display_name_endpoint,
     make_hidden_endpoint,
 )
+from src import telemetry
 from src.devices.blind_automation import BlindOutcome, move_blinds
 from src.devices.tuya_client import (
     TuyaBackoffActive,
@@ -337,21 +338,15 @@ async def control_switch(device_id: str, request: Request) -> Dict[str, Any]:
         TUYA_SNAPSHOT.invalidate()  # the plug may have switched before the error
         raise HTTPException(status_code=502, detail=str(exc))
 
-    # Record the toggle into the unified telemetry event log. Best-effort:
-    # a telemetry failure must never break the control action.
-    try:
-        from src import telemetry
-
-        telemetry.record_event(
-            "plug",
-            "plug_on" if on else "plug_off",
-            entity_id=device_id,
-            source="manual",
-            outcome="ok",
-            payload={"device_id": device_id, "switch_on": on},
-        )
-    except Exception:  # noqa: BLE001 — telemetry is best-effort
-        logger.debug("telemetry plug-toggle event skipped", exc_info=True)
+    # Best-effort: a telemetry failure must never break the control action.
+    telemetry.record_event_quietly(
+        "plug",
+        "plug_on" if on else "plug_off",
+        entity_id=device_id,
+        source="manual",
+        outcome="ok",
+        payload={"device_id": device_id, "switch_on": on},
+    )
 
     card = await _read_back(device_id)
     return card if card is not None else {"device_id": device_id, "reachable": False, "switch_on": on}
