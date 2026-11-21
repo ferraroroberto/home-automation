@@ -506,26 +506,21 @@ def _fresh_people(
 
 def _fully_fresh(
     people: Iterable[PersonPresence],
-    *,
     config: PresenceAutomationConfig,
     at: datetime,
     corroboration: Optional[Dict[str, PresenceCorroboration]],
     known_person_ids: Iterable[str],
 ) -> Optional[list[PersonPresence]]:
-    """The alarm-safety input gate: the whole roster, every person fresh.
+    """The alarm-safety input gate: a non-empty roster, no member missing, everyone fresh.
 
-    ``None`` when the list is empty, a roster member has no record, or anyone is
-    stale or contradicted — the caller then refuses to act. One copy, so the
-    decision, the satisfied-disarm key and the arm-block diagnosis cannot drift
-    on what "everyone is accounted for" means.
+    ``None`` means refuse to act. A shrunken roster is not a smaller household, so
+    this refuses both directions (refusing a disarm leaves the house armed, the
+    safe way to be wrong). One copy keeps the decision, the satisfied-disarm key
+    and the arm-block diagnosis agreeing on what "everyone is accounted for" means.
     """
 
     current = list(people)
-    if not current:
-        return None
-    # A shrunken roster is not a smaller household: refuse both directions.
-    # Refusing a disarm leaves the house armed, the safe way to be wrong.
-    if missing_people(current, known_person_ids):
+    if not current or missing_people(current, known_person_ids):
         return None
     fresh = _fresh_people(current, config=config, at=at, corroboration=corroboration)
     return fresh if len(fresh) == len(current) else None
@@ -578,13 +573,7 @@ def evaluate_alarm_decision(
     if not config.auto_arm_enabled and not config.auto_disarm_enabled:
         return None
 
-    fresh = _fully_fresh(
-        people,
-        config=config,
-        at=stamp,
-        corroboration=corroboration,
-        known_person_ids=known_person_ids,
-    )
+    fresh = _fully_fresh(people, config, stamp, corroboration, known_person_ids)
     if fresh is None:
         return None
 
@@ -737,13 +726,7 @@ def satisfied_disarm_key(
 
     if not config.auto_disarm_enabled or security_mode != "disarmed":
         return None
-    fresh = _fully_fresh(
-        people,
-        config=config,
-        at=at or now_utc(),
-        corroboration=corroboration,
-        known_person_ids=known_person_ids,
-    )
+    fresh = _fully_fresh(people, config, at or now_utc(), corroboration, known_person_ids)
     if fresh is None:
         return None
     home = [p for p in fresh if p.state == "home"]
@@ -779,13 +762,7 @@ def evaluate_arm_block(
     # A missing roster member is :func:`evaluate_staleness_block`'s story to
     # tell, not this one's — reporting "ana is still home" while the engine has
     # lost sight of roberto entirely would name the wrong blocker.
-    fresh = _fully_fresh(
-        people,
-        config=config,
-        at=at or now_utc(),
-        corroboration=corroboration,
-        known_person_ids=known_person_ids,
-    )
+    fresh = _fully_fresh(people, config, at or now_utc(), corroboration, known_person_ids)
     if fresh is None:
         return None
     home = [p for p in fresh if p.state == "home"]
