@@ -179,9 +179,10 @@ def _edit_export_rates_from_money_view(page: Page) -> None:
     expect(page.locator("#exportRateSheet")).to_be_visible()
     expect(page.locator("#exportRateCurrent")).to_have_text("€0.05000 / kWh")
     surface(page, "energy.export-rate-sheet")
-    # One primary per view: Add rate is the commit, Done is the secondary.
+    # One primary per sheet: the footer's Done. Add rate is the form's own tint action.
     expect(page.locator("#exportRateSheet .button-primary")).to_have_count(1)
-    expect(page.locator("#exportRateAdd")).to_have_class(re.compile(r"\bbutton-primary\b"))
+    expect(page.locator("#exportRateSheet .detail-actions .button-primary")).to_have_count(1)
+    expect(page.locator("#exportRateAdd")).to_have_class(re.compile(r"\bbutton-tint\b"))
     page.locator("#exportRateDate").fill("2026-09-05")
     page.locator("#exportRateAdd").click()
     expect(page.locator("#exportRateError")).to_have_text("Enter an export rate.")

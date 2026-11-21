@@ -19,7 +19,7 @@
 
 import { jsonApi, isAuthRequired } from '../api.js';
 import { emptyStateEl } from '../empty-state.js';
-import { localIsoDate } from '../format.js';
+import { localIsoDate, plural } from '../format.js';
 import { sheet } from '../sheet.js';
 import {
   createTeslaChargeChart,
@@ -97,9 +97,7 @@ function windowBuckets(serverBuckets) {
   });
 }
 
-function fmtKwh(v) { return Number(v).toFixed(1) + ' kWh'; }
-
-function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+function fmtTeslaKwh(v) { return Number(v).toFixed(1) + ' kWh'; }
 
 // A figure and its unit; the unit never breaks inside itself.
 function setStat(el, value, unit) {
@@ -122,7 +120,7 @@ function renderStats(current) {
     plural(current.drives, 'drive'),
     plural(current.charging_sessions, 'charging session'),
   ];
-  if (current.charged_kwh > 0) parts.push(fmtKwh(current.charged_home_kwh) + ' at home');
+  if (current.charged_kwh > 0) parts.push(fmtTeslaKwh(current.charged_home_kwh) + ' at home');
   $('teslaStatsCaption').textContent = parts.join(' · ');
 }
 
@@ -163,7 +161,7 @@ function noneRow(text) {
 
 function renderSessions(sessions) {
   const charges = sessions.charging.map(function (c) {
-    const kwh = c.kwh_added == null ? 'Energy unknown' : fmtKwh(c.kwh_added);
+    const kwh = c.kwh_added == null ? 'Energy unknown' : fmtTeslaKwh(c.kwh_added);
     return sessionRow(kwh + ' · ' + (PLACE_WORDS[c.location] || PLACE_WORDS.unknown), [
       fmtWhen(c.start_ts),
       pctSpan(c.start_pct, c.end_pct),
@@ -175,7 +173,7 @@ function renderSessions(sessions) {
   const drives = sessions.drives.map(function (d) {
     return sessionRow(Number(d.km).toFixed(1) + ' km', [
       fmtWhen(d.start_ts),
-      d.energy_kwh == null ? null : '~' + fmtKwh(d.energy_kwh),
+      d.energy_kwh == null ? null : '~' + fmtTeslaKwh(d.energy_kwh),
       pctSpan(d.start_pct, d.end_pct),
     ], 'car');
   });

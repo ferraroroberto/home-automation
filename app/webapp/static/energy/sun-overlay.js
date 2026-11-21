@@ -10,7 +10,7 @@
 
 import { state, els } from '../state.js';
 import { jsonApi } from '../api.js';
-import { localIsoDate } from '../format.js';
+import { localIsoDate, plural } from '../format.js';
 import { createSunOverlayChart, setSunOverlayData, loadChartJs } from './charts.js';
 import { onSettingsSheetOpen } from '../settings.js';
 
@@ -24,10 +24,6 @@ const SUN_OVERLAY_NOTES = {
   too_old: 'Irradiance history only reaches back about three months.',
   rate_limited: 'Weather provider is rate-limiting us right now — retrying shortly.',
 };
-
-function plural(n, noun) {
-  return n + ' ' + noun + (n === 1 ? '' : 's');
-}
 
 // Named, never merely absent: an hour silently dropped would leave the day
 // looking better-measured than it was — the same class of quiet error the

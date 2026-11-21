@@ -177,7 +177,7 @@ function renderSortControls() {
 // row carries (the live fields are null once a device stops being observed).
 function bandOf(d) { return d.conn_type || d.last_conn_type || null; }
 function ssidOf(d) { return d.ssid || d.last_ssid || null; }
-function bandLabel(d) {
+function deviceBandLabel(d) {
   const band = bandOf(d);
   return band ? (CONN_LABELS[band] || band) : '—';
 }
@@ -265,7 +265,7 @@ function buildDeviceRow(d, grouped) {
     // and SSID are explicit (the band header no longer says it). The MAC is
     // dropped for consistency with the band view; it's still reachable
     // from the detail modal.
-    const bits = [d.ip || '—', bandLabel(d)];
+    const bits = [d.ip || '—', deviceBandLabel(d)];
     const ssid = ssidOf(d);
     if (ssid) bits.push('Wi-Fi ' + ssid);
     meta.textContent = bits.join(' · ');
@@ -500,7 +500,7 @@ function appendCustomGroup(name, members, editable, showOffline) {
 }
 
 // ------------------------------------------------- device detail + rename
-function deviceByMac(mac) {
+export function deviceByMac(mac) {
   const list = (state.network && state.network.devices) || [];
   const target = String(mac || '').toUpperCase();
   return list.find(function (d) { return String(d.mac || '').toUpperCase() === target; }) || null;
