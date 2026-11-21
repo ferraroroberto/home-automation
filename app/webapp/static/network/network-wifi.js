@@ -22,17 +22,11 @@ import {
   loadChartJs,
   setWifiChannelData,
 } from '../energy/charts.js';
-import { renderSignalBar, friendlyError } from '../format.js';
+import { bandLabel, renderSignalBar, friendlyError } from '../format.js';
 import { chipEl } from '../chip.js';
 import { renderNetwork } from './network.js';
 import { setToggleState } from '../toggle.js';
 import { sheet } from '../sheet.js';
-
-const WIFI_BAND_LABELS = { '2.4GHz': '2.4 GHz', '5GHz': '5 GHz', '6GHz': '6 GHz' };
-
-function bandLabel(band) {
-  return WIFI_BAND_LABELS[band] || band || '—';
-}
 
 function wifiLabel(b) {
   return b.display_name || b.ssid || '(hidden)';

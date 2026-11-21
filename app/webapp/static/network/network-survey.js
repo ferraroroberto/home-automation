@@ -26,11 +26,11 @@ import { state, els, toast, NETWORK_SURVEY_MAC_KEY } from '../state.js';
 import { persistedPref } from '../persisted-pref.js';
 import { api, jsonApi, isAuthRequired, reportActionFailure } from '../api.js';
 import { emptyStateEl } from '../empty-state.js';
-import { fmtAgo, renderSignalBar } from '../format.js';
+import { bandLabel, fmtAgo, renderSignalBar } from '../format.js';
 import { icon } from '../_vendored/icons/icons.js';
 // Same identity precedence the device list uses (custom label → vendor →
 // hostname → MAC), imported rather than restated so a rename shows up here too.
-import { deviceLabel } from './network-devices.js';
+import { deviceByMac, deviceLabel } from './network-devices.js';
 import { sheet } from '../sheet.js';
 
 // One warm-up round-trip (discarded — it pays for connection setup) plus this
@@ -46,7 +46,6 @@ const PAYLOAD_TIMEOUT_MS = 20_000;
 // slow, so the recording POST gets a longer budget than the 30 s api() default.
 const RECORD_TIMEOUT_MS = 45_000;
 
-const BAND_LABELS = { '2.4GHz': '2.4 GHz', '5GHz': '5 GHz', '6GHz': '6 GHz', wired: 'wired' };
 // Which box actually measured the sample — the load-bearing column for an
 // "where should the next access point go" decision.
 const SOURCE_LABELS = { ap: 'via AP', router: 'via router', both: 'via AP + router' };
@@ -60,10 +59,6 @@ let surveyLoaded = false;
 let recording = false;
 
 // --------------------------------------------------------------- formatting
-function bandLabel(band) {
-  return BAND_LABELS[band] || band || '—';
-}
-
 function round1(v) {
   return v == null ? null : Math.round(v * 10) / 10;
 }
@@ -100,12 +95,6 @@ function wirelessDevices() {
   }).slice().sort(function (a, b) {
     return (b.signal || 0) - (a.signal || 0);
   });
-}
-
-function deviceByMac(mac) {
-  const list = (state.network && state.network.devices) || [];
-  const target = String(mac || '').toUpperCase();
-  return list.find(function (d) { return String(d.mac || '').toUpperCase() === target; }) || null;
 }
 
 function pickedLabel() {

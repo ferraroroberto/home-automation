@@ -11,6 +11,7 @@
 
 import { els } from '../state.js';
 import { jsonApi } from '../api.js';
+import { fmtMbps, fmtMs } from '../format.js';
 import { icon } from '../_vendored/icons/icons.js';
 
 const W = 300;          // viewBox width — the SVG stretches to its cell
@@ -19,8 +20,6 @@ const PAD = 4;          // vertical inset so the stroke never clips
 const LATENCY_MIN_SPAN_MS = 10;   // a steady link must not read as a swing
 const SPEED_MIN_TESTS = 3;        // fewer tests than this is not a trend
 
-function fmtMs(v) { return Math.round(Number(v)) + ' ms'; }
-function fmtMbps(v) { return Math.round(Number(v)) + ' Mbps'; }
 
 /** Map `[[ts, value], ...]` to SVG coordinates on a shared y scale `scale = {lo, hi}`. */
 function project(points, scale, t0, t1) {

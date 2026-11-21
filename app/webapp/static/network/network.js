@@ -30,7 +30,7 @@ import {
   reportFetchOk,
 } from '../state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from '../api.js';
-import { esc, fmtPct, friendlyError } from '../format.js';
+import { esc, fmtMbps, fmtMs, fmtPct, friendlyError } from '../format.js';
 import { icon } from '../_vendored/icons/icons.js';
 import {
   restoreSnapshot,
@@ -82,8 +82,6 @@ const networkView = createViewState('network');
 let lastSpeed = null;
 
 // --------------------------------------------------------------- formatting
-function fmtMs(v) { return v == null ? '—' : Math.round(Number(v)) + ' ms'; }
-function fmtMbps(v) { return v == null ? '—' : Math.round(Number(v)) + ' Mbps'; }
 function fmtUptime(seconds) {
   const s = Math.max(0, Math.floor(Number(seconds) || 0));
   const d = Math.floor(s / 86400);

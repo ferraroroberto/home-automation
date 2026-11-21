@@ -1,6 +1,6 @@
   <!-- Energy › History › Filters & sort: the period and the Energy / Money
        switch for the one History chart. Instant (each control applies as it
-       changes); Clear returns to Day + Energy, Done closes. The controls keep
+       changes); Clear (in the body) returns to Day + Energy, Done closes. The controls keep
        the ids energy.js reads (historyRange, historyView). -->
   <dialog data-track-view="energy-history-filters-sheet" data-surface="energy.history-filters-sheet" id="energyHistoryFiltersSheet" class="detail-dialog filter-sheet">
     <div class="detail-card">
@@ -27,9 +27,9 @@
             <button type="button" class="segmented-item" aria-pressed="false" data-view="money">Money</button>
           </div>
         </div>
+        <button data-track="energy.history-filters-clear" id="energyHistoryFiltersClear" type="button" class="button-tint sheet-add">Clear</button>
       </div>
-      <div class="detail-actions filter-sheet-actions">
-        <button data-track="energy.history-filters-clear" id="energyHistoryFiltersClear" type="button" class="button-tint">Clear</button>
+      <div class="detail-actions">
         <button data-track="energy.history-filters-done" id="energyHistoryFiltersDone" type="button" class="button-primary detail-save-btn">Done</button>
       </div>
     </div>
@@ -194,13 +194,13 @@
           <label><span>Hourly overrides (optional)</span><textarea id="exportRateHourly" class="input-native export-rate-hourly" rows="3" placeholder="24 comma-separated rates for 00:00–23:00"></textarea></label>
           <div class="export-rate-actions">
             <button data-track="energy.export-rate-delete" id="exportRateDelete" type="button" class="button-tint danger" hidden>Delete</button>
-            <button data-track="energy.export-rate-add" id="exportRateAdd" type="button" class="button-primary">Add rate</button>
+            <button data-track="energy.export-rate-add" id="exportRateAdd" type="button" class="button-tint">Add rate</button>
           </div>
         </div>
         <p id="exportRateError" class="field-error" role="alert" hidden></p>
       </div>
       <div class="detail-actions">
-        <button data-track="energy.export-rate-sheet-done" type="button" class="button-tint detail-save-btn" data-sheet-done>Done</button>
+        <button data-track="energy.export-rate-sheet-done" type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
       </div>
     </div>
   </dialog>

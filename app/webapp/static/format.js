@@ -61,6 +61,29 @@ export function fmtPct(v) {
   return v == null ? '—' : Math.round(Number(v)) + '%';
 }
 
+/** "12 ms" — a latency, or an em dash when there is no reading. */
+export function fmtMs(v) {
+  return v == null ? '—' : Math.round(Number(v)) + ' ms';
+}
+
+/** "94 Mbps" — a throughput, or an em dash when there is no reading. */
+export function fmtMbps(v) {
+  return v == null ? '—' : Math.round(Number(v)) + ' Mbps';
+}
+
+/** "1 drive" / "3 drives" — a count with its noun, regular plural only. */
+export function plural(n, noun) {
+  return n + ' ' + noun + (n === 1 ? '' : 's');
+}
+
+const BAND_LABELS = { '2.4GHz': '2.4 GHz', '5GHz': '5 GHz', '6GHz': '6 GHz' };
+
+/** A radio band for display ("5GHz" -> "5 GHz"); an unknown band shows as
+ *  reported, a missing one as an em dash. */
+export function bandLabel(band) {
+  return BAND_LABELS[band] || band || '—';
+}
+
 /** A date as the browser's own local "YYYY-MM-DD". `toISOString()` is UTC and
  *  names yesterday for the first hours of a local day east of Greenwich, which
  *  is not the day the server frames hourly rollups or fires one-shot alarms by. */

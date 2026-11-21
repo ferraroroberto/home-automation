@@ -67,7 +67,7 @@ function renderToggle(on, disabled) {
   els.homeVmToggle.disabled = !!disabled;
 }
 
-function fmtUptime(seconds) {
+function fmtVmUptime(seconds) {
   if (seconds == null) return '';
   const total = Math.max(0, Math.round(Number(seconds)));
   const mins = Math.floor(total / 60);
@@ -88,7 +88,7 @@ function statusBadge(vm) {
     return { mod: 'unavailable', text: vm && vm.phase === VmPhase.NOT_FOUND ? 'not found' : 'unavailable' };
   }
   if (vm.phase === VmPhase.RUNNING) {
-    const up = fmtUptime(vm.uptime_seconds);
+    const up = fmtVmUptime(vm.uptime_seconds);
     return { mod: 'running', text: up ? 'online · up ' + up : 'online' };
   }
   if (vm.phase === VmPhase.OFF) return { mod: 'off', text: 'off' };
