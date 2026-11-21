@@ -427,10 +427,10 @@ def test_network_oui_vendor_and_category_heuristics() -> None:
     assert vendor_for_mac("DA:A1:19:00:00:01") is None
 
     # Category: hostname keyword wins; vendor is the weak fallback; else unknown.
-    assert category_for_device("Kitchen-iPad", "Apple", "5GHz") == "phone"
-    assert category_for_device(None, "Espressif", "5GHz") == "iot"
-    assert category_for_device("office-laserjet", None, "wired") == "printer"
-    assert category_for_device(None, None, "wired") == "unknown"
+    assert category_for_device("Kitchen-iPad", "Apple") == "phone"
+    assert category_for_device(None, "Espressif") == "iot"
+    assert category_for_device("office-laserjet", None) == "printer"
+    assert category_for_device(None, None) == "unknown"
 
 
 def test_network_history_store_seeds_then_flags_new_and_prunes(tmp_path) -> None:

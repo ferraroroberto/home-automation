@@ -58,12 +58,11 @@ def test_override_bypasses_after_max_retries_and_restores_on_rearm(monkeypatch, 
         engine.telemetry, "record_event", lambda *a, **kw: telemetry_calls.append((a, kw))
     )
 
-    config = engine.OverrideAutomationConfig(enabled=True, event_scan_interval_s=20)
     events: list[_FakeEvent] = [_FakeEvent("2026-07-04T10:00:00Z", name="Full Set - 'USER 1 MASTER', WEB", type="armed")]
 
     # First scan ever: no cursor yet -> establishes the baseline, no replay.
     monkeypatch.setattr(engine, "fetch_events", _async_return(events))
-    asyncio.run(engine._run_event_scan(config))
+    asyncio.run(engine._run_event_scan())
     assert bypass_calls == []
 
     # First "Alarm" trigger for zone 12 -> count 1, still below max_retries=2.
@@ -71,7 +70,7 @@ def test_override_bypasses_after_max_retries_and_restores_on_rearm(monkeypatch, 
         _FakeEvent("2026-07-04T10:05:00Z", name="Alarm - 'PUERTA JARDIN'", type="triggered", zone_id=12)
     ]
     monkeypatch.setattr(engine, "fetch_events", _async_return(events))
-    asyncio.run(engine._run_event_scan(config))
+    asyncio.run(engine._run_event_scan())
     assert bypass_calls == []
 
     # Second trigger -> count reaches max_retries=2 -> zone gets bypassed.
@@ -79,7 +78,7 @@ def test_override_bypasses_after_max_retries_and_restores_on_rearm(monkeypatch, 
         _FakeEvent("2026-07-04T10:06:00Z", name="Alarm - 'PUERTA JARDIN'", type="triggered", zone_id=12)
     ]
     monkeypatch.setattr(engine, "fetch_events", _async_return(events))
-    asyncio.run(engine._run_event_scan(config))
+    asyncio.run(engine._run_event_scan())
     assert bypass_calls == [(12, True)]
     assert telemetry_calls[-1][0][:2] == ("security", "auto_bypass")
     assert telemetry_calls[-1][1]["entity_id"] == "12"
@@ -95,7 +94,7 @@ def test_override_bypasses_after_max_retries_and_restores_on_rearm(monkeypatch, 
         _FakeEvent("2026-07-04T10:07:00Z", name="Alarm - 'PUERTA JARDIN'", type="triggered", zone_id=12)
     ]
     monkeypatch.setattr(engine, "fetch_events", _async_return(events))
-    asyncio.run(engine._run_event_scan(config))
+    asyncio.run(engine._run_event_scan())
     assert bypass_calls == [(12, True)]  # unchanged - only one bypass call so far
 
     # The next arm event restores the zone and resets the session.
@@ -103,7 +102,7 @@ def test_override_bypasses_after_max_retries_and_restores_on_rearm(monkeypatch, 
         _FakeEvent("2026-07-04T11:00:00Z", name="Full Set - 'USER 1 MASTER', WEB", type="armed")
     ]
     monkeypatch.setattr(engine, "fetch_events", _async_return(events))
-    asyncio.run(engine._run_event_scan(config))
+    asyncio.run(engine._run_event_scan())
     assert bypass_calls[-1] == (12, False)
     assert telemetry_calls[-1][0][:2] == ("security", "auto_unbypass")
 
@@ -177,8 +176,7 @@ def test_unreadable_session_store_does_not_clear_auto_bypassed_zones(
     ]
     monkeypatch.setattr(engine, "fetch_events", _async_return(events))
 
-    config = engine.OverrideAutomationConfig(enabled=True, event_scan_interval_s=20)
-    asyncio.run(engine._run_event_scan(config))  # must honor the "never raises" contract
+    asyncio.run(engine._run_event_scan())  # must honor the "never raises" contract
 
     monkeypatch.setattr(Path, "read_text", real_read_text)
     on_disk = json.loads(session_cfg.SESSION_PATH.read_text(encoding="utf-8"))
@@ -197,8 +195,7 @@ def test_scan_skips_fetch_when_nothing_configured_or_pending(monkeypatch, tmp_pa
 
     monkeypatch.setattr(engine, "fetch_events", fake_fetch_events)
 
-    config = engine.OverrideAutomationConfig(enabled=True, event_scan_interval_s=20)
-    asyncio.run(engine._run_event_scan(config))
+    asyncio.run(engine._run_event_scan())
 
     assert called["n"] == 0  # no overrides configured, nothing pending restoration
 
@@ -259,14 +256,14 @@ def test_scan_handles_each_new_event_once_oldest_first_claiming_after(monkeypatc
     ]
     monkeypatch.setattr(engine, "fetch_events", _async_return(events))
 
-    asyncio.run(engine._run_event_scan(_SCAN_CONFIG))
+    asyncio.run(engine._run_event_scan())
     assert handled == [
         ("2026-07-04T10:05:00Z", _CURSOR),
         ("2026-07-04T10:07:00Z", "2026-07-04T10:05:00Z"),
     ]
     assert _cursor() == "2026-07-04T10:07:00Z"
 
-    asyncio.run(engine._run_event_scan(_SCAN_CONFIG))  # same log again: nothing new
+    asyncio.run(engine._run_event_scan())  # same log again: nothing new
     assert len(handled) == 2
 
 
@@ -288,7 +285,7 @@ def test_scan_rechecks_cursor_before_each_event(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr(engine, "save_override_session", save_then_race)
 
-    asyncio.run(engine._run_event_scan(_SCAN_CONFIG))
+    asyncio.run(engine._run_event_scan())
     assert [t for t, _ in handled] == [first]
     assert _cursor() == second
 
@@ -302,7 +299,7 @@ def test_scan_first_run_sets_baseline_without_handling(monkeypatch, tmp_path) ->
     ]
     monkeypatch.setattr(engine, "fetch_events", _async_return(events))
 
-    asyncio.run(engine._run_event_scan(_SCAN_CONFIG))
+    asyncio.run(engine._run_event_scan())
     assert handled == []
     assert _cursor() == "2026-07-04T11:00:00Z"
 
@@ -324,13 +321,13 @@ def test_scan_handler_failure_leaves_cursor_and_retries_next_scan(monkeypatch, t
 
     monkeypatch.setattr(engine, "_handle_event", failing_handle)
     with caplog.at_level("WARNING", logger=engine.logger.name):
-        asyncio.run(engine._run_event_scan(_SCAN_CONFIG))
+        asyncio.run(engine._run_event_scan())
     assert attempts == [first]
     assert _cursor() == _CURSOR
     assert "Security override event scan failed: RISCO Cloud hiccup" in caplog.text
 
     handled = _record_handled(monkeypatch)
-    asyncio.run(engine._run_event_scan(_SCAN_CONFIG))
+    asyncio.run(engine._run_event_scan())
     assert [t for t, _ in handled] == [first, second]
     assert _cursor() == second
 
@@ -344,12 +341,12 @@ def test_scan_fetch_failure_leaves_cursor_and_releases_guard(monkeypatch, tmp_pa
 
     monkeypatch.setattr(engine, "fetch_events", failing_fetch)
     with caplog.at_level("WARNING", logger=engine.logger.name):
-        asyncio.run(engine._run_event_scan(_SCAN_CONFIG))
+        asyncio.run(engine._run_event_scan())
     assert handled == [] and _cursor() == _CURSOR
     assert "Alarm-override event-log read failed: cloud down" in caplog.text
 
     monkeypatch.setattr(engine, "fetch_events", _async_return([_alarm("2026-07-04T10:05:00Z")]))
-    asyncio.run(engine._run_event_scan(_SCAN_CONFIG))
+    asyncio.run(engine._run_event_scan())
     assert [t for t, _ in handled] == ["2026-07-04T10:05:00Z"]
 
 
@@ -370,13 +367,13 @@ def test_scan_guards_against_overlap(monkeypatch, tmp_path) -> None:
             return []
 
         monkeypatch.setattr(engine, "fetch_events", slow_fetch)
-        first = asyncio.create_task(engine._run_event_scan(_SCAN_CONFIG))
+        first = asyncio.create_task(engine._run_event_scan())
         await asyncio.sleep(0)
-        await engine._run_event_scan(_SCAN_CONFIG)  # overlaps the first: skipped
+        await engine._run_event_scan()  # overlaps the first: skipped
         assert fetches["n"] == 1
         release.set()
         await first
-        await engine._run_event_scan(_SCAN_CONFIG)
+        await engine._run_event_scan()
         assert fetches["n"] == 2
 
     asyncio.run(run())
@@ -389,8 +386,8 @@ def test_consider_security_read_throttles_scans(monkeypatch) -> None:
     monkeypatch.setattr(engine, "load_override_automation_config", lambda: _SCAN_CONFIG)
     scans: list = []
 
-    async def fake_scan(config):
-        scans.append(config)
+    async def fake_scan():
+        scans.append(True)
 
     monkeypatch.setattr(engine, "_run_event_scan", fake_scan)
     base = 1e12  # far past any real monotonic reading an earlier test left behind
@@ -401,7 +398,7 @@ def test_consider_security_read_throttles_scans(monkeypatch) -> None:
             before = len(scans)
             with monkeypatch.context() as m:
                 m.setattr(time, "monotonic", lambda: base + offset)
-                engine.consider_security_read(object())
+                engine.consider_security_read()
             await asyncio.sleep(0)
             await asyncio.sleep(0)
             if len(scans) > before:

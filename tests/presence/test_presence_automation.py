@@ -73,7 +73,7 @@ def _wire_common(monkeypatch) -> None:
     monkeypatch.setattr(PA, "fetch_security_state", fake_fetch_security_state)
     monkeypatch.setattr(PA, "check_security_transitions", fake_check_security_transitions)
     monkeypatch.setattr(PA, "consider_security_read", lambda security: None)
-    monkeypatch.setattr(PA, "consider_security_override", lambda security: None)
+    monkeypatch.setattr(PA, "consider_security_override", lambda: None)
     monkeypatch.setattr(PA, "load_automation_config", lambda: _Config())
     monkeypatch.setattr(PA, "load_people", lambda: {"p1": object()})
     monkeypatch.setattr(PA, "evaluate_alarm_decision", lambda *a, **k: _DECISION)

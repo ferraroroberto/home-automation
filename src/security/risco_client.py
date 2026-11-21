@@ -626,14 +626,13 @@ async def fetch_events(count: int = 50, days: int = 30) -> List[SecurityEvent]:
 
 
 # --------------------------------------------------------------- controls
-async def control_system(action: str, partition_id: Optional[int] = None) -> SecurityState:
+async def control_system(action: str) -> SecurityState:
     """Run an arming action and return the re-read state.
 
     This panel rejects pyrisco's partition-based control endpoint with "use Arm
     action", so writes intentionally use the same native WebUI whole-panel
     endpoint as the RISCO browser app.
     """
-    del partition_id
     if action not in ACTIONS:
         raise RiscoCommandError(f"Unknown action '{action}' (expected one of {ACTIONS}).")
     logger.info("RISCO WebUI %s", action)

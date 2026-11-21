@@ -283,3 +283,20 @@ def test_camera_last_snapshot_only_serves_its_own_frame(
         assert resp.content != b"\xff\xd8other"
     for camera_id in ("../other", "..\\other", "C:other", "", ".", ".."):
         assert camera_ffmpeg.last_snapshot_path(camera_id) is None, camera_id
+
+
+def test_camera_stream_maps_a_failing_camera_to_503(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A camera that cannot resolve its stream fails before the 200 goes out."""
+    from src.devices.camera_client import CameraConfigError
+
+    async def _frames(camera_id: str):
+        raise CameraConfigError("no stream for " + camera_id)
+        yield b""  # pragma: no cover - makes this an async generator
+
+    monkeypatch.setattr("app.webapp.routers.cameras.mjpeg_frames", _frames)
+
+    resp = client.get("/api/cameras/ghost/stream")
+    assert resp.status_code == 503
+    assert "ghost" in resp.json()["detail"]

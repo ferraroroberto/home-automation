@@ -110,22 +110,37 @@ async def camera_last_snapshot(camera_id: str) -> Response:
 
 @router.get("/api/cameras/{camera_id}/stream")
 async def camera_stream(camera_id: str) -> StreamingResponse:
+    frames = mjpeg_frames(camera_id)
+    # Pull the first frame before the 200 goes out: an unknown or unreachable
+    # camera raises while resolving its stream URL, and only here can that
+    # become a 404/503/502 instead of a dead 200 stream.
     try:
-        async def _multipart() -> AsyncIterator[bytes]:
-            async for jpeg in mjpeg_frames(camera_id):
-                yield (
-                    b"--" + _MJPEG_BOUNDARY.encode() + b"\r\n"
-                    b"Content-Type: image/jpeg\r\n"
-                    b"Content-Length: " + str(len(jpeg)).encode() + b"\r\n\r\n"
-                    + jpeg + b"\r\n"
-                )
-
-        return StreamingResponse(
-            _multipart(),
-            media_type=f"multipart/x-mixed-replace; boundary={_MJPEG_BOUNDARY}",
-        )
+        first: Optional[bytes] = await anext(frames, None)
     except Exception as exc:  # noqa: BLE001
+        await frames.aclose()
         raise _http_error(exc)
+
+    def _part(jpeg: bytes) -> bytes:
+        return (
+            b"--" + _MJPEG_BOUNDARY.encode() + b"\r\n"
+            b"Content-Type: image/jpeg\r\n"
+            b"Content-Length: " + str(len(jpeg)).encode() + b"\r\n\r\n"
+            + jpeg + b"\r\n"
+        )
+
+    async def _multipart() -> AsyncIterator[bytes]:
+        try:
+            if first is not None:
+                yield _part(first)
+                async for jpeg in frames:
+                    yield _part(jpeg)
+        finally:
+            await frames.aclose()  # kills ffmpeg when the viewer disconnects
+
+    return StreamingResponse(
+        _multipart(),
+        media_type=f"multipart/x-mixed-replace; boundary={_MJPEG_BOUNDARY}",
+    )
 
 
 class PtzPayload(BaseModel):
