@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-_PKG_DIR = Path(__file__).resolve().parents[1] / "assets" / "home_assistant" / "home_automation_app"
+_PKG_DIR = Path(__file__).resolve().parents[2] / "assets" / "home_assistant" / "home_automation_app"
 _PKG = "ha_app_under_test"
 
 
