@@ -67,33 +67,51 @@ def _tailscale_hostname(binary: str) -> str:
     return name
 
 
-def _tailscale_hostname_from_cert(cert_path: Path) -> Optional[str]:
-    """Return the .ts.net DNS SAN from the cert, or None if not a Tailscale cert."""
+class CertUnreadable(Exception):
+    """The cert file exists but could not be parsed (corrupt PEM, missing ``cryptography``)."""
+
+
+def _load_cert(cert_path: Path):
+    """Parse the PEM, raising ``CertUnreadable`` instead of guessing when it cannot be read."""
     try:
         from cryptography import x509
-        cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
+
+        return x509.load_pem_x509_certificate(cert_path.read_bytes())
+    except Exception as exc:  # noqa: BLE001 — every failure means "could not establish the cert's state"
+        raise CertUnreadable(f"{type(exc).__name__}: {exc}") from exc
+
+
+def _tailscale_hostname_from_cert(cert_path: Path) -> Optional[str]:
+    """Return the .ts.net DNS SAN from the cert, or None if not a Tailscale cert.
+
+    Raises ``CertUnreadable`` when the cert cannot be parsed, so an unreadable
+    cert is never mistaken for a self-signed one.
+    """
+    cert = _load_cert(cert_path)
+    from cryptography import x509  # importable: _load_cert just used it
+
+    try:
         san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
-        for name in san.value.get_values_for_type(x509.DNSName):
-            if ".ts.net" in name:
-                return name
-    except Exception:
-        pass
+    except x509.ExtensionNotFound:
+        return None
+    for name in san.value.get_values_for_type(x509.DNSName):
+        if ".ts.net" in name:
+            return name
     return None
 
 
 def _expiring_within(cert_path: Path, days: int) -> bool:
-    """Return True if the cert expires within `days` days."""
+    """Return True if the cert expires within `days` days.
+
+    Raises ``CertUnreadable`` when the cert cannot be parsed.
+    """
+    cert = _load_cert(cert_path)
     try:
-        from cryptography import x509
-        cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
-        try:
-            expiry = cert.not_valid_after_utc
-        except AttributeError:  # cryptography < 42
-            expiry = cert.not_valid_after.replace(tzinfo=datetime.timezone.utc)
-        threshold = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days)
-        return expiry < threshold
-    except Exception:
-        return False
+        expiry = cert.not_valid_after_utc
+    except AttributeError:  # cryptography < 42
+        expiry = cert.not_valid_after.replace(tzinfo=datetime.timezone.utc)
+    threshold = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days)
+    return expiry < threshold
 
 
 def _provision(hostname: str, binary: str) -> None:
@@ -137,18 +155,22 @@ def _check_and_renew() -> bool:
     succeeded, so a boot path that runs this via ``--check`` can log a failed
     *due* renewal instead of silently discarding it. ``True`` covers
     both "nothing was due" and "renewed OK"; ``False`` means renewal was due
-    and did not happen.
+    and did not happen, or the cert could not be read so whether it is due is
+    unknown.
     """
     cert_path = CERT_DIR / "cert.pem"
     if not cert_path.exists():
         return True
 
-    hostname = _tailscale_hostname_from_cert(cert_path)
-    if hostname is None:
-        return True  # self-signed / non-tailnet cert; leave it alone
-
-    if not _expiring_within(cert_path, RENEW_WITHIN_DAYS):
-        return True
+    try:
+        hostname = _tailscale_hostname_from_cert(cert_path)
+        if hostname is None:
+            return True  # self-signed / non-tailnet cert; leave it alone
+        if not _expiring_within(cert_path, RENEW_WITHIN_DAYS):
+            return True
+    except CertUnreadable as exc:
+        print(f"[WARN] Cannot read {cert_path}, so its expiry is unknown and renewal was not checked: {exc}")
+        return False
 
     print(f"[INFO] Tailscale cert for {hostname} expires within {RENEW_WITHIN_DAYS} days — renewing.")
     binary = tailscale_binary()
@@ -171,7 +193,7 @@ def main() -> None:
         # Exit code (not just printed text) is the signal a caller like
         # app.webapp.manager._renew_tailscale_cert can check without parsing
         # stdout — 0 means "nothing was due, or it renewed", 1 means a due
-        # renewal failed.
+        # renewal failed or the cert could not be read (state unknown).
         sys.exit(0 if _check_and_renew() else 1)
 
     binary = tailscale_binary()
