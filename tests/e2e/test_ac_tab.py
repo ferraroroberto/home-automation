@@ -461,7 +461,7 @@ def _all_dialog_close_buttons_use_compact_44px_targets(
     expect(page.locator(".detail-close.icon-button")).to_have_count(56)
     # And every title takes focus on open (vendored modal contract), so the
     # close never opens ringed and no field pops the phone keyboard unasked.
-    expect(page.locator('.detail-header h2[tabindex="-1"][autofocus]')).to_have_count(54)
+    expect(page.locator('.detail-header h2[tabindex="-1"][autofocus]')).to_have_count(55)
 
     target = effective_rect(page.locator("#detailClose"))
     # Exact compact-control contract: 34px visual box, 44px effective hit area.
