@@ -8,6 +8,7 @@ Each lifecycle in this repo has one declared state type and one derive function 
 | `searxng-phase` | `src/voice/searxng_client.py` (`SearxngPhase`, `derive_searxng_phase`) | `serving`, `unreachable`, `down`, `not_found` | Docker's container status word and the `/healthz` probe | the watchdog's recovery plan, `GET /api/searxng` (`phase`), the Settings row |
 | `vm-phase` | `src/devices/hyperv_client.py` (`VmPhase`, `derive_vm_phase`) | `running`, `off`, `transitioning`, `not_found`, `unknown` | Hyper-V's lower-cased `State` word | the power toggle guard, `GET /api/hyperv` (`phase`), the Home Assistant card |
 | `vehicle-state` | `src/devices/tesla_client.py` (`VehicleState`, `TeslaReading.awake`) | `online`, `asleep`, `offline`, `unconfigured`, `error` | Tesla's connectivity word, or the read's own failure | the sampler's cadence, `GET /api/tesla` (`awake`), the Tesla card |
+| `self-restart run` | `src/self_restart.py` (`RestartState`, `derive_restart_state`) | `running`, `ok`, `failed`, `timeout`, `error`, `unknown` | the runner's recorded ending and the run's start time | `GET /api/restart`, the restart sheet |
 | `daily-fire-latch` | `src/_schedule_store.py` (`DailyFireLatch`) | per entry key: the local date it last fired | the persisted `{key: date}` file | every schedule engine |
 
 ## Rules the machines keep
@@ -15,6 +16,7 @@ Each lifecycle in this repo has one declared state type and one derive function 
 - `view-state`: nothing moves into `idle` (the starting state) and a name outside the set is refused with a console warning, leaving the state as it was. The string values are the `data-state` attribute values the stylesheets select on.
 - `searxng-phase`: a stopped or missing container is never `serving`, whatever the probe says. A restart is planned only from `unreachable`, only past the grace window. Docker's status word stays on the state as `container_status` for display.
 - `vm-phase`: a start on a `running` VM and a stop on an `off` one are refused before any cmdlet runs. Hyper-V's word stays on the state as `state` for display.
+- `self-restart run`: `unknown` is never written, only derived: a run still `running` 30 s past its timeout means the runner vanished. Every other state is recorded by the runner, and the sheet never shows `unknown` as a restart that worked.
 - `vehicle-state`: only `online` is awake. A word Tesla adds later is treated as not awake until it is declared. The sample's `charging` flag is derived server-side from the charging state.
 
 ## Wire fields
