@@ -427,6 +427,46 @@ def test_record_event_quietly_forwards_the_arguments(monkeypatch) -> None:
     assert seen == [(("plug", "plug_on"), {"entity_id": "dev-1", "outcome": "ok"})]
 
 
+def test_record_event_is_never_called_unguarded() -> None:
+    """``record_event`` raises on any SQLite error. Outside ``src/telemetry.py``
+    a call must sit in a ``try`` that catches ``Exception`` — or, in an
+    actuation path, use ``record_event_quietly`` — so a telemetry failure can
+    never abort the action it records (a boost flag flipped with no write, a
+    zone bypassed on the panel but never saved for restore)."""
+    import ast
+
+    root = Path(__file__).resolve().parents[1]
+    offenders: list[str] = []
+
+    def catches_everything(node: ast.Try) -> bool:
+        return any(
+            h.type is None or (isinstance(h.type, ast.Name) and h.type.id == "Exception")
+            for h in node.handlers
+        )
+
+    def walk(node: ast.AST, guarded: bool, path: Path) -> None:
+        if isinstance(node, ast.Call):
+            name = getattr(node.func, "attr", getattr(node.func, "id", None))
+            if name == "record_event" and not guarded:
+                offenders.append(f"{path.relative_to(root)}:{node.lineno}")
+        for field_name, value in ast.iter_fields(node):
+            children = value if isinstance(value, list) else [value]
+            for child in children:
+                if not isinstance(child, ast.AST):
+                    continue
+                # Only the try *body* is protected, not its handlers/else/finally.
+                protected = guarded or (
+                    isinstance(node, ast.Try) and field_name == "body" and catches_everything(node)
+                )
+                walk(child, protected, path)
+
+    for path in [*(root / "src").rglob("*.py"), *(root / "app").rglob("*.py")]:
+        if path == root / "src" / "telemetry.py":
+            continue
+        walk(ast.parse(path.read_text(encoding="utf-8")), False, path)
+    assert not offenders, f"guard with try/except Exception or use record_event_quietly: {offenders}"
+
+
 def test_no_hand_rolled_best_effort_wrapper_around_record_event() -> None:
     """A ``try: telemetry.record_event(...) except Exception`` is the one shape
     ``record_event_quietly`` replaces; a new copy must call it instead."""

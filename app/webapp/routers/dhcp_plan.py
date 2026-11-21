@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import ipaddress
 import logging
 import re
 from typing import Any, Dict, List, Mapping, Optional, Set
@@ -85,6 +86,19 @@ def _ip_last_octet(ip: Optional[str]) -> int:
         return int((ip or "").rsplit(".", 1)[-1])
     except (ValueError, AttributeError):
         return 999
+
+
+def _is_reservable_ip(ip: str, prefix: str) -> bool:
+    """True for a well-formed IPv4 address inside ``prefix`` with a host octet 2–254.
+
+    Parsed as a real address first so a string that merely starts with the
+    prefix and ends in a valid octet (``192.168.0.7.5``) is not accepted.
+    """
+    try:
+        ipaddress.IPv4Address(ip)
+    except ValueError:
+        return False
+    return ip.startswith(prefix + ".") and 2 <= _ip_last_octet(ip) <= 254
 
 
 def _existing_binding_dict(
@@ -327,8 +341,7 @@ async def apply_dhcp_reservations(payload: DhcpReservationsApplyPayload) -> Dict
         ip = (m.ip or "").strip()
         if not _MAC_RE.match(mac):
             raise HTTPException(status_code=400, detail=f"invalid MAC address: {mac}")
-        octet = _ip_last_octet(ip)
-        if not ip.startswith(prefix + ".") or not (2 <= octet <= 254):
+        if not _is_reservable_ip(ip, prefix):
             raise HTTPException(
                 status_code=400,
                 detail=f"IP must be on {prefix}.0/24 with a host octet (2–254): {ip}",

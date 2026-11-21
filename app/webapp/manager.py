@@ -189,14 +189,21 @@ class WebappManager:
         running_here = self._proc is not None and self._proc.poll() is None
         reachable = self.is_reachable() or self.is_port_in_use()
 
-        if running_here and reachable:
+        if running_here:
+            # A live child is ours even before it binds: reporting a slow boot
+            # as "not running" would let stop() skip it (orphaned on Quit) and
+            # start()/restart() spawn a second process over it.
             return WebappStatus(
                 running=True,
                 ownership=OWNERSHIP_OURS,
                 pid=self._proc.pid,
                 port=self.config.port,
                 base_url=self.base_url,
-                detail="running (started by this process)",
+                detail=(
+                    "running (started by this process)"
+                    if reachable
+                    else "starting (started by this process, not yet reachable)"
+                ),
             )
         if reachable:
             return WebappStatus(

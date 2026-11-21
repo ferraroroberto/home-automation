@@ -116,7 +116,7 @@ async def _auto_bypass(zone_id: int, max_retries: int, trigger_count: int) -> No
         logger.warning("⚠️ Override auto-bypass failed for zone %s: %s", zone_id, exc)
         return
     zone_name = _zone_name_for(zone_id, state)
-    telemetry.record_event(
+    telemetry.record_event_quietly(
         "security",
         "auto_bypass",
         entity_id=str(zone_id),
@@ -158,7 +158,7 @@ async def _restore_after_rearm() -> None:
             still_bypassed.append(zone_id)
             continue
         zone_name = _zone_name_for(zone_id, state)
-        telemetry.record_event(
+        telemetry.record_event_quietly(
             "security",
             "auto_unbypass",
             entity_id=str(zone_id),

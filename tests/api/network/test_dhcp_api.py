@@ -267,5 +267,10 @@ def test_dhcp_reservations_apply_rejects_malformed_input_before_any_router_call(
         url, json={"add_manual": [{"mac": "AA:BB:CC:DD:EE:01", "ip": "10.0.0.5"}]}
     )
 
-    assert [r.status_code for r in (bad_id, bad_mac, bad_ip)] == [400, 400, 400]
+    # In the subnet by prefix and ending in a valid octet, but not an IPv4 address.
+    extra_octet = client.post(
+        url, json={"add_manual": [{"mac": "AA:BB:CC:DD:EE:01", "ip": "192.168.0.7.5"}]}
+    )
+
+    assert [r.status_code for r in (bad_id, bad_mac, bad_ip, extra_octet)] == [400] * 4
     assert calls == []
