@@ -16,6 +16,7 @@ with the router set, as an exhaustive per-endpoint table would.
     tuya               → /api/tuya*                      (Smart Life / Tuya plugs, blinds)
     blind_schedules    → /api/blinds/schedules, /api/blinds/alarm-pairing
     ups                → /api/ups*                        (USB UPS + notify prefs)
+    tesla              → /api/tesla*                      (read-only car card, history, sessions)
     lights             → /api/lights*                     (Elgato lights)
     cameras            → /api/cameras*                    (RTSP/ONVIF, snapshot, stream, PTZ, presets)
     security           → /api/security, /api/security/events, /api/security/{action}, zones
@@ -41,6 +42,7 @@ with the router set, as an exhaustive per-endpoint table would.
     web_search         → /api/voice/search                   (Spanish voice web search: SearXNG es + hub summary)
     pc_fleet           → /api/pc-fleet*                     (UPS-triggered fleet-shutdown prefs + hub proxy)
     actions            → /api/actions/{action_id}           (generalized action alias)
+    scenes             → /api/scenes*                     (list and run home scenes)
     usage_log          → /api/usage/events, /api/usage/summary  (vendored local-only view/tap log)
 
 Run with::

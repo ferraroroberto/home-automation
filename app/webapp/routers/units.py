@@ -492,22 +492,14 @@ async def update_boost_coordinator(payload: BoostCoordinatorPayload) -> Dict[str
     return _boost_coordinator_payload(config)
 
 
+def _schedule_payload(entries: List[ScheduleEntry]) -> Dict[str, Any]:
+    """The schedule summary plus every entry, shared by the GET and PUT responses."""
+    return {**_schedule_summary(entries), "entries": [_entry_dict(e) for e in entries]}
+
+
 @router.get("/api/units/{unit_id}/schedule")
 async def get_schedule(unit_id: str) -> Dict[str, Any]:
-    entries = load_schedules().get(unit_id, [])
-    first = entries[0] if entries else ScheduleEntry(enabled=False)
-    summary = _schedule_summary(entries)
-    return {
-        **summary,
-        "entries": [_entry_dict(e) for e in entries],
-        # Compatibility with the old single-schedule response shape.
-        "power": first.power,
-        "operation_mode": first.operation_mode,
-        "set_temperature": first.set_temperature,
-        "fan_speed": first.fan_speed,
-        "vane_vertical_direction": first.vane_vertical_direction,
-        "vane_horizontal_direction": first.vane_horizontal_direction,
-    }
+    return _schedule_payload(load_schedules().get(unit_id, []))
 
 
 @router.put("/api/units/{unit_id}/schedule")
@@ -522,16 +514,4 @@ async def update_schedule(unit_id: str, request: Request) -> Dict[str, Any]:
         logger.warning("⚠️  Failed to save schedule for %s: %s", unit_id, exc)
         raise HTTPException(status_code=500, detail=f"failed to save schedule: {exc}")
 
-    summary = _schedule_summary(entries)
-    first = entries[0] if entries else ScheduleEntry(enabled=False)
-    return {
-        **summary,
-        "entries": [_entry_dict(e) for e in entries],
-        # Compatibility with the old single-schedule response shape.
-        "power": first.power,
-        "operation_mode": first.operation_mode,
-        "set_temperature": first.set_temperature,
-        "fan_speed": first.fan_speed,
-        "vane_vertical_direction": first.vane_vertical_direction,
-        "vane_horizontal_direction": first.vane_horizontal_direction,
-    }
+    return _schedule_payload(entries)
