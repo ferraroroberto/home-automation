@@ -132,7 +132,7 @@ from src.compression import StreamSafeGZipMiddleware
 from src.devices.camera_token import verify as _verify_camera_token
 from src.push_notifications import validate_push_config
 from src.runtime_data import runtime_data_dir, runtime_db_path
-from src.self_restart import TRAY_RESTART, RestartTarget, restart_router
+from src.self_restart import RestartTarget, restart_router
 from src.usage_log import usage_router
 from src.webapp_config import load_webapp_config
 
@@ -192,6 +192,12 @@ class CachingStaticFiles(StaticFiles):
         elif suffix in _DAILY_SUFFIXES:
             response.headers["Cache-Control"] = _DAY_CACHE
         return response
+
+
+# The restart sheet's recipe. `cmd /c` does not search the working directory when
+# NoDefaultCurrentDirectoryInExePath is set (it is, on the fleet host), so the
+# batch file is path-qualified.
+RESTART_COMMAND = ("cmd.exe", "/c", ".\\tray.bat", "--restart")
 
 
 # Persistent log sink for the webapp process. The tray launches
@@ -390,7 +396,7 @@ def create_app() -> FastAPI:
     # The build readout's restart sheet: runs this repo's own `tray.bat --restart`.
     # Same bearer gate as every other /api write; loopback bypasses it like the rest.
     app.include_router(restart_router(
-        targets=[RestartTarget("app", "Restart app", TRAY_RESTART)],
+        targets=[RestartTarget("app", "Restart app", RESTART_COMMAND)],
         status_dir=runtime_data_dir("home-automation") / "restart",
         guard=require_authenticated,
     ))
