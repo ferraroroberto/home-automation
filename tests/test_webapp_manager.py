@@ -22,6 +22,7 @@ class _FakeProc:
 
     def __init__(self) -> None:
         self.exited = False
+        self.pid = 4242
 
     def poll(self):
         return 1 if self.exited else None
@@ -85,3 +86,43 @@ class TestWatchUntilResolved:
         mgr = _manager(monkeypatch)
         mgr._proc = None
         assert mgr.watch_until_resolved() is False
+
+
+class TestSlowBootIsOurs:
+    """A spawned child that is alive but not yet bound is ours (a slow boot)."""
+
+    def _unbound(self, monkeypatch) -> WebappManager:
+        mgr = _manager(monkeypatch)  # proc alive, is_reachable() False
+        monkeypatch.setattr(mgr, "is_port_in_use", lambda: False)
+        return mgr
+
+    def test_status_reports_a_starting_child_as_ours(self, monkeypatch):
+        status = self._unbound(monkeypatch).status()
+        assert status.running is True
+        assert status.ownership == "ours"
+        assert "starting" in status.detail
+
+    def test_stop_terminates_a_child_that_has_not_bound_yet(self, monkeypatch):
+        mgr = self._unbound(monkeypatch)
+        proc = mgr._proc
+        terminated: list[str] = []
+        proc.send_signal = lambda _sig: None
+        proc.terminate = lambda: terminated.append("terminate")
+        proc.wait = lambda timeout=None: 0
+
+        mgr.stop()
+
+        assert terminated == ["terminate"]
+        assert mgr._proc is None
+
+    def test_start_does_not_spawn_a_second_process_over_a_starting_child(self, monkeypatch):
+        mgr = self._unbound(monkeypatch)
+        first = mgr._proc
+        monkeypatch.setattr(
+            "app.webapp.manager.subprocess.Popen",
+            lambda *a, **k: pytest.fail("spawned a second webapp"),
+        )
+
+        mgr.start(wait=False)
+
+        assert mgr._proc is first

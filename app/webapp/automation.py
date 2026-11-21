@@ -352,7 +352,7 @@ def _set_boost(
         state.boost_since[uid] = now_monotonic
         if uid not in state.boost_order:
             state.boost_order.append(uid)
-        telemetry.record_event(
+        telemetry.record_event_quietly(
             "hvac", "boost_start", entity_id=uid, source="hvac_automation",
             payload={"pv_surplus_w": surplus_w, "reason": reason},
         )
@@ -364,7 +364,7 @@ def _set_boost(
         state.boost_since.pop(uid, None)
         if uid in state.boost_order:
             state.boost_order.remove(uid)
-        telemetry.record_event(
+        telemetry.record_event_quietly(
             "hvac", "boost_stop", entity_id=uid, source="hvac_automation",
             payload={"pv_surplus_w": surplus_w, "reason": reason},
         )
@@ -403,7 +403,7 @@ def _log_boost_hold(
     if state.boost_hold_logged == uid:
         return
     state.boost_hold_logged = uid
-    telemetry.record_event(
+    telemetry.record_event_quietly(
         "hvac", "boost_hold", entity_id=uid, source="hvac_automation",
         payload={"pv_surplus_w": surplus_w, "reason": "held_margin"},
     )

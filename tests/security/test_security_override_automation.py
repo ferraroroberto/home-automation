@@ -139,6 +139,27 @@ def test_restore_after_rearm_keeps_failed_zone_bypassed_for_retry(monkeypatch, t
     assert session.session_counts == {}
 
 
+def test_auto_bypass_is_recorded_even_when_telemetry_raises(monkeypatch, tmp_path) -> None:
+    """A telemetry failure between the RISCO bypass and the session save must not
+    leave the zone bypassed on the panel but absent from ``auto_bypassed_zones``
+    (it would never be restored on re-arm)."""
+
+    monkeypatch.setattr(session_cfg, "SESSION_PATH", tmp_path / "security_override_session.json")
+
+    async def fake_bypass(zone_id: int, bypass: bool):
+        return _FakeState()
+
+    def boom(*_a, **_k):
+        raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(engine, "set_zone_bypass", fake_bypass)
+    monkeypatch.setattr(engine.telemetry, "record_event", boom)
+
+    asyncio.run(engine._auto_bypass(12, max_retries=2, trigger_count=2))
+
+    assert session_cfg.load_override_session().auto_bypassed_zones == [12]
+
+
 def test_unreadable_session_store_does_not_clear_auto_bypassed_zones(
     monkeypatch, tmp_path
 ) -> None:

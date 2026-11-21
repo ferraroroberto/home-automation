@@ -67,6 +67,7 @@ from app.webapp._env import _env_bool, _env_int
 from app.webapp._event_log_scan import ALARM_EVENT_TYPE, EventLogScanner
 from app.webapp._task_loop import spawn_background_task
 from app.webapp._zone_lookup import _zone_name_for
+from src._schedule_store import StoreUnreadableError
 from src.activity_log import append_activity
 from src.notify import NotifierError
 from src.notify_config import build_alarm_notifier, load_notify_config
@@ -347,14 +348,19 @@ async def _run_event_scan(security: object, config: AlarmSceneConfig) -> None:
         zone_id = int(event.zone_id)
         await _run_onset([(zone_id, _zone_name_for(zone_id, security))], config)
 
-    await _scanner.guarded(lambda: _scanner.scan(
-        fetch=fetch_events,
-        wanted=lambda e: getattr(e, "type", None) == ALARM_EVENT_TYPE
-        and getattr(e, "zone_id", None) is not None,
-        load_cursor=load_last_alarm_event_time,
-        save_cursor=save_last_alarm_event_time,
-        handle=onset,
-    ))
+    try:
+        await _scanner.guarded(lambda: _scanner.scan(
+            fetch=fetch_events,
+            wanted=lambda e: getattr(e, "type", None) == ALARM_EVENT_TYPE
+            and getattr(e, "zone_id", None) is not None,
+            load_cursor=load_last_alarm_event_time,
+            save_cursor=save_last_alarm_event_time,
+            handle=onset,
+        ))
+    except StoreUnreadableError as exc:
+        # An unreadable cursor fails this tick instead of re-baselining past
+        # unprocessed alarms; the next scan retries.
+        logger.warning("⚠️ Alarm scene event scan failed: %s", exc)
 
 
 async def _run_baseline_refresh(config: AlarmSceneConfig) -> None:
