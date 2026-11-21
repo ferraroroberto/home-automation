@@ -23,6 +23,16 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
+# Home Assistant is on the LAN, so a healthy REST call returns almost at once; this
+# bounds a dead or wedged host to one request instead of hanging the caller.
+HA_REST_TIMEOUT_S = 15
+# Same bound for each WebSocket handshake/reply, so a half-open socket cannot wedge a
+# voice request.
+HA_WS_RECEIVE_TIMEOUT_S = 15
+# A ping every 30 s lets aiohttp notice a silently dropped connection instead of
+# sending the next command into it.
+HA_WS_HEARTBEAT_S = 30
+
 
 @dataclass(frozen=True)
 class HaConfig:
@@ -120,7 +130,7 @@ class HomeAssistantClient:
                 f"{base_url}{path}",
                 headers=self._headers,
                 json=body,
-                timeout=aiohttp.ClientTimeout(total=15),
+                timeout=aiohttp.ClientTimeout(total=HA_REST_TIMEOUT_S),
             ) as response:
                 if response.status == 401:
                     raise HaClientError("Home Assistant rejected HA_TOKEN", status=502)
@@ -183,8 +193,8 @@ class HomeAssistantClient:
         try:
             ws = await self.session.ws_connect(
                 ws_url,
-                timeout=aiohttp.ClientWSTimeout(ws_receive=15),
-                heartbeat=30,
+                timeout=aiohttp.ClientWSTimeout(ws_receive=HA_WS_RECEIVE_TIMEOUT_S),
+                heartbeat=HA_WS_HEARTBEAT_S,
             )
             hello = await ws.receive_json()
             if hello.get("type") != "auth_required":

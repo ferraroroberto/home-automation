@@ -9,19 +9,16 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional, Set
 
-from src.devices.display_names import load_display_names, set_display_name
+from src.devices.id_set_store import load_id_set, set_id_member
 
 DEFAULT_PATH = Path(__file__).resolve().parents[2] / "config" / "presence_hidden.json"
-_HIDDEN_MARKER = "1"
 
 
 def load_hidden_presence_ids(path: Optional[Path] = None) -> Set[str]:
     """Return ids marked hidden, or an empty set when absent."""
-    return set(load_display_names(DEFAULT_PATH if path is None else path).keys())
+    return load_id_set(DEFAULT_PATH if path is None else path)
 
 
 def set_presence_hidden(entity_id: str, hidden: bool, path: Optional[Path] = None) -> None:
     """Mark or unmark one presence entity as hidden."""
-    set_display_name(
-        entity_id, _HIDDEN_MARKER if hidden else "", DEFAULT_PATH if path is None else path
-    )
+    set_id_member(entity_id, hidden, DEFAULT_PATH if path is None else path)

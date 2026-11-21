@@ -868,12 +868,14 @@ function refreshOpenSheet() {
 // initial boot fetch is the caller's `loadUnits()` call. Kept as its own
 // gate rather than the shared `createTabPollGate`: it always resets the
 // poll to 0 first, then re-arms it only for the two active tabs.
+// The AC refresh cadence the README's poll table documents.
+const POLL_MS = 30_000;
 const scheduleUnits = createPoller(loadUnits);
 export function onUnitsTab(tab) {
   scheduleUnits(0);
   if (tab === 'home' || tab === 'ac') {
     loadUnits();
-    scheduleUnits(30_000);
+    scheduleUnits(POLL_MS);
   }
 }
 

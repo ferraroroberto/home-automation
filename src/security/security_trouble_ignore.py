@@ -5,11 +5,8 @@ known/accepted trouble (a detector that can't be serviced yet) renders muted and
 stops bubbling to the Home/Security main card — while genuinely un-ignored
 troubles still surface there.
 
-The on-disk shape is the same ``{zone_id: marker}`` map the display-name/hidden
-stores use, so the atomic load/save/set logic is shared verbatim from
-``src.devices.display_names`` (only the file path differs), keeping it in lock-step with
-``src.security.security_hidden``. An ignored detector is ``{"3": "1"}``; un-ignoring clears
-the entry. The real file is gitignored (it would expose which detectors exist in a
+The persisted id set lives in ``src.devices.id_set_store`` (an ignored detector is
+``{"3": "1"}``; un-ignoring clears the entry). The real file is gitignored (it would expose which detectors exist in a
 public repo); a missing file is not an error.
 """
 
@@ -18,26 +15,20 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional, Set
 
-from src.devices.display_names import load_display_names, set_display_name
+from src.devices.id_set_store import load_id_set, set_id_member
 
 DEFAULT_PATH = (
     Path(__file__).resolve().parents[2] / "config" / "security_trouble_ignore.json"
 )
 
-# Truthy marker stored as the map value for an ignored zone (presence is what
-# matters; the store only keeps truthy values).
-_IGNORED_MARKER = "1"
-
 
 def load_ignored_trouble_zone_ids(path: Optional[Path] = None) -> Set[str]:
     """Return the set of zone ids (as strings) whose trouble is ignored."""
-    return set(load_display_names(DEFAULT_PATH if path is None else path).keys())
+    return load_id_set(DEFAULT_PATH if path is None else path)
 
 
 def set_zone_trouble_ignored(
     zone_id: str, ignored: bool, path: Optional[Path] = None
 ) -> None:
     """Mark or unmark one detector's trouble as ignored, persisting immediately."""
-    set_display_name(
-        zone_id, _IGNORED_MARKER if ignored else "", DEFAULT_PATH if path is None else path
-    )
+    set_id_member(zone_id, ignored, DEFAULT_PATH if path is None else path)
