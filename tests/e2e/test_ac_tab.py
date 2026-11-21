@@ -453,12 +453,12 @@ def _all_dialog_close_buttons_use_compact_44px_targets(
     # and Network sheets (#884) + Home's wake alarm editor and timer sheet
     # (#885) + the eleven Settings sheets (#886) + the Car history sheet
     # (#1121) + the Energy History and Security Detectors Filters & sort
-    # sheets; the HA capabilities help left the census when #461 made it a
-    # folded subsection instead of a modal.
-    expect(close_buttons).to_have_count(55)
+    # sheets + the build readout's restart sheet; the HA capabilities help left
+    # the census when #461 made it a folded subsection instead of a modal.
+    expect(close_buttons).to_have_count(56)
     # Every close is the vendored modal's icon-button (#906), which owns the
     # invisible 44px target.
-    expect(page.locator(".detail-close.icon-button")).to_have_count(55)
+    expect(page.locator(".detail-close.icon-button")).to_have_count(56)
     # And every title takes focus on open (vendored modal contract), so the
     # close never opens ringed and no field pops the phone keyboard unasked.
     expect(page.locator('.detail-header h2[tabindex="-1"][autofocus]')).to_have_count(54)
