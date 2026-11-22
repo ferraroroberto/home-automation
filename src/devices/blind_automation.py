@@ -26,11 +26,12 @@ command a blind receives is numbered, so a newer command — another schedule,
 a manual tap, a Stop — supersedes the pending retry of an older one: an old
 "open" can never undo a newer "close" or "stop".
 
-Sends to one blind are serialised (:func:`_send_newest`), and each checks it
-is still the newest command once its turn comes, so the last command tapped
-is the last one the blind receives: a Stop tapped while an earlier "open" is
-still waiting on an unresponsive blind goes out right after it, never before
-it, and a stale command queued behind it is dropped instead of sent.
+A newer command never waits behind an older send still in flight
+(:func:`_send_newest`): a Stop or the opposite direction tapped mid-move goes
+out at once, because a blind's command call can block for as long as the
+blind is slow to answer. The older call cannot be recalled, so when it
+returns after the newer command was already delivered, the newest command is
+re-sent: the last command tapped is still the last one the blind receives.
 """
 
 from __future__ import annotations
@@ -124,34 +125,75 @@ def is_newest_command(device_id: str, command: int) -> bool:
     return _latest_command.get(device_id) == command
 
 
-# One lock per blind: a blind takes one command at a time. Threading
-# locks, since the sends run in worker threads.
-_send_locks: Dict[str, threading.Lock] = {}
-_send_locks_guard = threading.Lock()
+# Per blind: sends still in flight, the newest command's action, and the
+# newest command whose send has returned ok. One guard for all three, since
+# the sends run in worker threads.
+_in_flight: Dict[str, int] = {}
+_latest_action: Dict[str, CoverAction] = {}
+_delivered: Dict[str, int] = {}
+_send_guard = threading.Lock()
 
 
-def _send_lock(device_id: str) -> threading.Lock:
-    with _send_locks_guard:
-        return _send_locks.setdefault(device_id, threading.Lock())
+def _set_cover_outcome(device_id: str, action: CoverAction, command: int) -> BlindOutcome:
+    try:
+        set_cover(device_id, action)
+    except (TuyaCommandError, TuyaConfigError, TuyaDeviceNotFoundError) as exc:
+        return BlindOutcome(device_id=device_id, ok=False, error=str(exc), command=command)
+    return BlindOutcome(device_id=device_id, ok=True, command=command)
 
 
 def _send_newest(device_id: str, action: CoverAction, command: int) -> BlindOutcome:
-    """Send ``action`` once this blind is free, unless a newer command came first.
+    """Send ``action`` now, unless a newer command came first.
 
-    Blocking: runs in a worker thread. Holding the blind's lock across the
-    newest-command check and the send is what keeps commands in tap order.
+    Blocking: runs in a worker thread. It never waits for an older send to
+    this blind: that call may hang while the blind travels, and a Stop
+    queued behind it would land only once the run is over. An older send
+    that returns after a newer command was delivered may have reached the
+    blind last, so the newest command is re-sent.
     """
-    with _send_lock(device_id):
+    with _send_guard:
         if not is_newest_command(device_id, command):
             logger.info(
                 "ℹ️ Blind %s: %s dropped, a newer command superseded it", device_id, action
             )
             return BlindOutcome(device_id=device_id, ok=False, command=command, superseded=True)
-        try:
-            set_cover(device_id, action)
-        except (TuyaCommandError, TuyaConfigError, TuyaDeviceNotFoundError) as exc:
-            return BlindOutcome(device_id=device_id, ok=False, error=str(exc), command=command)
-    return BlindOutcome(device_id=device_id, ok=True, command=command)
+        pending = _in_flight.get(device_id, 0)
+        _in_flight[device_id] = pending + 1
+        _latest_action[device_id] = action
+    if pending:
+        logger.info(
+            "ℹ️ Blind %s: %s pre-empts %d send(s) still in flight", device_id, action, pending
+        )
+    try:
+        outcome = _set_cover_outcome(device_id, action, command)
+    finally:
+        with _send_guard:
+            _in_flight[device_id] -= 1
+    with _send_guard:
+        if outcome.ok and is_newest_command(device_id, command):
+            _delivered[device_id] = command
+        newest = _latest_command.get(device_id, command)
+        reassert = newest != command and _delivered.get(device_id) == newest
+        newest_action = _latest_action.get(device_id)
+    if reassert and newest_action is not None:
+        _reassert_newest(device_id, newest_action, newest, overtaken=action)
+    return outcome
+
+
+def _reassert_newest(
+    device_id: str, action: CoverAction, command: int, *, overtaken: CoverAction
+) -> None:
+    """Re-send the newest command after an older, overtaken send returned."""
+    logger.info(
+        "ℹ️ Blind %s: overtaken %s returned after %s was delivered, re-sending %s",
+        device_id, overtaken, action, action,
+    )
+    result = _set_cover_outcome(device_id, action, command)
+    if not result.ok:
+        logger.warning(
+            "⚠️ Blind %s: re-sending %s after an overtaken send failed: %s",
+            device_id, action, result.error,
+        )
 
 
 async def _send_cover(device_id: str, action: CoverAction, command: int) -> BlindOutcome:

@@ -316,7 +316,9 @@ function blindRow(device) {
     title: name,
     chip: device.reachable ? hiddenChip(device) : chipEl('Offline', 'attention', 'blind-offline'),
     onOpen: function (btn) { openPlugDetail(device.device_id, btn); },
-    trail: device.reachable ? blindVerbs(name, function (action) { coverAction(device, action); }) : null,
+    // Offline-looking blinds keep their controls: a blind slow to answer
+    // mid-move reads as unreachable, and Stop must stay pressable then.
+    trail: blindVerbs(name, function (action) { coverAction(device, action); }),
   });
   row.dataset.deviceId = device.device_id;
   return row;
