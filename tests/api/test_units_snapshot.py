@@ -98,3 +98,26 @@ def test_automation_write_forces_a_refetch(
 
     client.get("/api/units")
     assert len(fetches) == 2
+
+
+def test_engine_poll_keeps_the_snapshot_fresh_for_the_next_read(
+    client: TestClient, fetches: List[int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+
+    from app.webapp import automation, read_snapshot
+
+    clock = [1000.0]
+    monkeypatch.setattr(read_snapshot.time, "monotonic", lambda: clock[0])
+    client.get("/api/units")
+    clock[0] += 61  # nobody read for a while: the snapshot is past its bound
+
+    async def engine_fetch() -> List[DeviceInfo]:
+        return [replace(_UNIT, room_temperature=19.5)]
+
+    monkeypatch.setattr(automation, "fetch_devices", engine_fetch)
+    asyncio.run(automation._fetch_units())
+
+    body = client.get("/api/units").json()
+    assert len(fetches) == 1  # served from the engine's fetch, no second login
+    assert body["units"][0]["room_temperature"] == 19.5
