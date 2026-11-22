@@ -60,6 +60,12 @@
                             what the map generates, beyond
                             .ux-surface-ratchet-baseline.json. Whole tree, never
                             routed; exit 3 is NOT CONFIRMED and fails.
+     10e. request budget ratchet — no file's count of a fixed-rate browser poll, a poll
+                            under the 2 s floor, an undeclared fast server loop, a
+                            directory walk in a request handler, a submit to the shared
+                            default pool, or a web app without the request-timing
+                            middleware rises beyond .request-budget-ratchet-baseline.json.
+                            Whole tree, never routed; exit 3 is NOT CONFIRMED and fails.
      11. pytest (non-e2e) — the fast backend suite (tests/, excluding tests/e2e);
                             stages 11-13 run inside the runtime write probe
                             (--snapshot before, --probe after), which fails on any
@@ -229,6 +235,8 @@ try {
     Invoke-Stage "usage track ratchet" { & $py -m scripts.usage_track_ratchet_gate }
     # Same exit-3 mapping for the UX surface ratchet (tests/ratchets/test_ux_surface_ratchet_gate.py).
     Invoke-Stage "ux surface ratchet" { & $py -m scripts.ux_surface_ratchet_gate }
+    # Same exit-3 mapping for the request budget ratchet (tests/ratchets/test_request_budget_ratchet_gate.py).
+    Invoke-Stage "request budget ratchet" { & $py -m scripts.request_budget_ratchet_gate }
     # Runtime write probe, first half: what already sits untracked or ignored under the
     # code folders, so the probe after the test runs names only what they wrote. The
     # script's own --snapshot/--probe modes; the static stage above goes through the wrapper.
