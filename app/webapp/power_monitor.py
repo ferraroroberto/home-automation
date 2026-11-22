@@ -36,6 +36,7 @@ from typing import Callable, Optional
 
 from dotenv import load_dotenv
 
+from app.webapp import read_snapshot
 from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop
 from app.webapp.power_notify import (
@@ -47,6 +48,8 @@ from src.devices.pc_fleet_prefs import PcFleetPrefs, load_pc_fleet_prefs
 from src.energy.ups_client import UpsState, fetch_ups_state
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_POLL_INTERVAL_S = 60
 
 # Fallback only — the live threshold is PcFleetPrefs.threshold_minutes, read
 # fresh each tick. This constant is used when the prefs can't be loaded.
@@ -90,7 +93,9 @@ async def tick(
     ``prefs_loader`` is an injection seam (tests) for the fleet prefs; its
     ``threshold_minutes`` sets the low-battery trigger point each tick."""
 
-    ups = await asyncio.to_thread(fetch_ups_state)
+    # Shares the /api/ups snapshot's read, so the UPS tool runs once per its
+    # max_age_s however many readers there are.
+    ups = await read_snapshot.read_fresh("ups", lambda: asyncio.to_thread(fetch_ups_state))
     if ups is None or not ups.available or ups.mains_online is None:
         return
     online = ups.mains_online
@@ -149,5 +154,5 @@ def start_power_monitor() -> Optional[asyncio.Task]:
     if not _env_bool("POWER_MONITOR_ENABLED", True):
         logger.info("ℹ️ Power monitor disabled (POWER_MONITOR_ENABLED)")
         return None
-    interval_s = max(10, _env_int("POWER_MONITOR_POLL_INTERVAL_S", 60))
+    interval_s = max(10, _env_int("POWER_MONITOR_POLL_INTERVAL_S", DEFAULT_POLL_INTERVAL_S))
     return asyncio.create_task(_run(interval_s), name="power-monitor")

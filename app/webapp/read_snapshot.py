@@ -32,7 +32,10 @@ of a failing serve-stale refresh.
 its own clock (the HVAC engine logs in to MELCloud every minute) fetches
 through :func:`refresh`, so its read also answers the endpoint: a reader
 arriving after the demand window lapsed finds data the loop just fetched
-instead of logging in again inside the request.
+instead of logging in again inside the request. A loop that only needs data
+no older than the snapshot's ``max_age_s`` (the presence loop's alarm read,
+the UPS monitors) reads through :func:`read_fresh` instead, so it fetches only
+when nobody else has within that bound.
 
 **Writes.** A write in this process either applies its read-back as a patch
 (:meth:`ReadSnapshot.update`) or marks the snapshot dirty
@@ -90,6 +93,20 @@ async def refresh(name: str, fetch: Callable[[], Awaitable[T]]) -> T:
     if snap is None:
         return await fetch()
     return await snap.refresh(fetch)
+
+
+async def read_fresh(name: str, fetch: Callable[[], Awaitable[T]]) -> T:
+    """The named snapshot's value, fetching (with ``fetch``) only when it is
+    older than that snapshot's ``max_age_s``.
+
+    For a loop that needs the data on its own clock whether or not anyone
+    watches the endpoint: it shares the endpoint's reads instead of adding
+    its own. A plain fetch when that snapshot's router isn't loaded.
+    """
+    snap = _REGISTRY.get(name)
+    if snap is None:
+        return await fetch()
+    return await snap.read_fresh(fetch)
 
 
 def invalidate(name: str) -> None:
@@ -186,6 +203,19 @@ class ReadSnapshot(Generic[T]):
         """
         async with self._lock:
             return await self._refresh("shared", fetch)
+
+    async def read_fresh(self, fetch: Optional[Callable[[], Awaitable[T]]] = None) -> T:
+        """The value, fetched first only when missing, dirty or past ``max_age_s``.
+
+        Not a demand, so the tick stays idle unless someone reads the endpoint.
+        A fetch error propagates.
+        """
+        if self._needs_fetch():
+            async with self._lock:
+                if self._needs_fetch():
+                    await self._refresh("shared", fetch)
+        assert self._value is not None
+        return self._value
 
     async def _refresh(
         self, reason: str, fetch: Optional[Callable[[], Awaitable[T]]] = None

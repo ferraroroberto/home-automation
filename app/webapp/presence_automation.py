@@ -10,6 +10,7 @@ from typing import Dict, Optional
 
 from dotenv import load_dotenv
 
+from app.webapp import read_snapshot
 from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop
 from app.webapp.alarm_notify import (
@@ -500,12 +501,13 @@ async def _alert_on_panel_events(security: SecurityState) -> None:
     Panel-event alerts (intrusion / AC-power lost-restored) ride on this loop's
     one security read and fire regardless of the presence auto-arm toggle —
     those alerts must not depend on auto-arm being enabled. This is the only
-    *unconditional* interval reader of RISCO state: the ``/api/security``
-    snapshot also refetches every 10 s, but only while that endpoint is
-    being watched, so an unwatched app still polls RISCO from here alone.
-    Adding a further poller would risk the cloud's third-party rate limit;
-    intrusion/AC alerts therefore require this task to be running
-    (PRESENCE_AUTOMATION_ENGINE_ENABLED, default on).
+    *unconditional* reader of RISCO state, and it reads through the
+    ``/api/security`` snapshot: while that endpoint is watched its 10 s tick
+    answers this loop too, and an unwatched app logs in to RISCO only when the
+    snapshot passes its ``max_age_s``. Each read is a full cloud and WebUI
+    login, so a further independent poller would risk the cloud's
+    third-party rate limit; intrusion/AC alerts therefore require this task to
+    be running (PRESENCE_AUTOMATION_ENGINE_ENABLED, default on).
     """
     ongoing, memory = security.ongoing_alarm, security.memory_alarm
     # None,None means the RISCO WebUI scrape that backs these two flags came
@@ -581,7 +583,7 @@ async def _report_decision_result(decision, failure: Optional[Exception]) -> Non
 async def tick() -> None:
     """Alert on panel events, then evaluate one presence transition."""
 
-    security = await fetch_security_state()
+    security = await read_snapshot.read_fresh("security", fetch_security_state)
     await _alert_on_panel_events(security)
 
     # Built once per tick from the live iCloud diagnostics cache
@@ -623,8 +625,9 @@ async def tick() -> None:
     async with automatic_alarm_action_lock():
         # The first read may have raced a schedule while waiting for this lock.
         # Re-read both the panel and persisted presence/command timestamps before
-        # acting so a decision is never applied from a stale snapshot.
-        security = await fetch_security_state()
+        # acting so a decision is never applied from a stale snapshot. A forced
+        # read, installed in the shared snapshot so the endpoint sees it too.
+        security = await read_snapshot.refresh("security", fetch_security_state)
         refreshed_decision = _evaluate_current_decision(
             security.mode, corroboration, known_person_ids, guardian_home_name
         )

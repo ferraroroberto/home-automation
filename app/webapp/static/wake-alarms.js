@@ -360,7 +360,7 @@ export function wireWakeAlarms() {
 // Poll only while the Home tab is active (main.js:828's idiom): the alarm
 // list rarely changes server-side (only via a fire/dismiss), and timers only
 // matter while the user might be looking at the countdown.
-const scheduleWakeAlarms = createPoller(function () { loadWakeAlarms(); loadWakeTimers(); });
+const scheduleWakeAlarms = createPoller(function () { return Promise.all([loadWakeAlarms(), loadWakeTimers()]); });
 // Ticks the countdowns from already-fetched state, no network call — smooth
 // ticking between the 10s server polls.
 const scheduleWakeTimersTick = createPoller(tickWakeTimers);

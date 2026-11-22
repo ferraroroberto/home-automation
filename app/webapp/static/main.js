@@ -226,8 +226,9 @@ setSignInHandler(loadUnits);
   // don't fetch on every tab, hence the explicit boot call).
   loadEnergy();
   startWeatherPolling();
+  // Once per page: the vendored build-watch below re-reads /api/version and
+  // offers the reload when the server moves to another build.
   fetchVersion();
-  setInterval(fetchVersion, 300_000);
   initRestartSheet({ fetchJson: jsonApi, postJson: postRestart });
 })();
 

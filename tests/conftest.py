@@ -49,3 +49,18 @@ def _isolate_activity_stores(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(tel, "DEFAULT_DB_PATH", tmp_path / "telemetry.sqlite3")
     tel.init_db()
     monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path / "logs")
+
+
+@pytest.fixture(autouse=True)
+def _fresh_read_snapshots() -> None:
+    """Start every test with empty read snapshots.
+
+    They are module state, and loops outside the routers (the presence and
+    power monitors) read through them too, so a value cached by one test's
+    fake fetcher would otherwise answer the next test's read. A snapshot not
+    yet registered starts empty when its router is imported.
+    """
+    from app.webapp import read_snapshot
+
+    for snap in read_snapshot.registered():
+        snap.reset()

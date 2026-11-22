@@ -297,3 +297,27 @@ def test_refresh_through_an_unregistered_name_is_a_plain_fetch() -> None:
         return 3
 
     assert asyncio.run(read_snapshot.refresh("no-such-snapshot", fetch)) == 3
+
+
+def test_read_fresh_fetches_only_past_the_bound_and_is_not_a_demand(clock: _Clock) -> None:
+    snap, calls = _counting_snapshot([{"a": 1}, {"a": 2}, {"a": 3}])
+
+    async def run() -> None:
+        assert await snap.read_fresh() == {"a": 1}
+        clock.now += 60
+        assert await snap.read_fresh() == {"a": 1}  # within max_age_s: from memory
+        await snap.tick_once()  # no endpoint read, so the tick stays idle
+        clock.now += 1
+        assert await snap.read_fresh() == {"a": 2}  # past max_age_s: one fetch
+        snap.invalidate()
+        assert await snap.read_fresh() == {"a": 3}  # a write's dirty mark refetches
+
+    asyncio.run(run())
+    assert len(calls) == 3
+
+
+def test_read_fresh_through_an_unregistered_name_is_a_plain_fetch() -> None:
+    async def fetch() -> int:
+        return 4
+
+    assert asyncio.run(read_snapshot.read_fresh("no-such-snapshot", fetch)) == 4

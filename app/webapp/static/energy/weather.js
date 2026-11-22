@@ -13,6 +13,7 @@
 
 import { jsonApi } from '../api.js';
 import { setHeadPart } from '../head-status.js';
+import { createPoller } from '../poll.js';
 
 const WEATHER_MS = 600_000;  // 10 min — weather barely moves
 
@@ -61,5 +62,5 @@ async function loadWeather() {
 
 export function startWeatherPolling() {
   loadWeather();
-  setInterval(loadWeather, WEATHER_MS);
+  createPoller(loadWeather)(WEATHER_MS);
 }
