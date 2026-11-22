@@ -270,3 +270,30 @@ def test_serve_stale_still_refetches_inline_after_a_write(clock: _Clock) -> None
         assert value == {"a": 2}
 
     asyncio.run(run())
+
+
+def test_refresh_installs_a_callers_fetch_so_a_stale_read_reuses_it(clock: _Clock) -> None:
+    snap, calls = _counting_snapshot([{"a": 1}])
+
+    async def engine_fetch() -> Dict[str, int]:
+        return {"a": 7}
+
+    async def run() -> None:
+        await snap.read()
+        clock.now += 61  # unread past the bound: the next read would log in again
+        assert await snap.refresh(engine_fetch) == {"a": 7}
+        value, meta = await snap.read()
+        assert value == {"a": 7} and meta["age_seconds"] == 0.0
+        await snap.tick_once()  # a refresh is not a demand
+        clock.now += 61
+        await snap.tick_once()
+
+    asyncio.run(run())
+    assert len(calls) == 1
+
+
+def test_refresh_through_an_unregistered_name_is_a_plain_fetch() -> None:
+    async def fetch() -> int:
+        return 3
+
+    assert asyncio.run(read_snapshot.refresh("no-such-snapshot", fetch)) == 3

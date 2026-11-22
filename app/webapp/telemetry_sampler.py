@@ -27,6 +27,7 @@ from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
+from app.webapp import read_snapshot
 from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop
 from src import telemetry
@@ -68,7 +69,8 @@ def load_sampler_config() -> TelemetrySamplerConfig:
 async def _collect_hvac() -> list:
     from src.devices.melcloud_client import fetch_devices
 
-    return adapters.hvac_readings(await fetch_devices())
+    # Through the /api/units snapshot, so this sample also serves the next reader.
+    return adapters.hvac_readings(await read_snapshot.refresh("units", fetch_devices))
 
 
 async def _collect_plugs() -> list:

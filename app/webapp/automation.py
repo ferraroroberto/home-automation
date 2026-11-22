@@ -86,6 +86,16 @@ logger = logging.getLogger(__name__)
 _DEFAULT_RANGE = (16.0, 31.0)
 
 
+async def _fetch_units() -> List[DeviceInfo]:
+    """Read every unit through the ``/api/units`` snapshot.
+
+    The engine reads MELCloud every minute regardless, so the same fetch keeps
+    the endpoint's snapshot fresh and a phone opening the app is answered from
+    memory instead of paying a ~1.5 s login of its own.
+    """
+    return await read_snapshot.refresh("units", fetch_devices)
+
+
 async def _write_unit(unit_id: str, **kwargs: Any) -> DeviceInfo:
     """Write one unit, then mark the ``/api/units`` snapshot dirty.
 
@@ -234,7 +244,7 @@ async def _verify_then_clear(
         await verify_schedule_fire(
             request,
             config.verify,
-            fetch=fetch_devices,
+            fetch=_fetch_units,
             write=_write_unit,
             sleep=asyncio.sleep,
             notify=_notify_verify,
@@ -285,7 +295,7 @@ async def _recover_idle(config: AutomationConfig, unit: DeviceInfo) -> None:
         await recover_idle_unit(
             unit,
             config.verify,
-            fetch=fetch_devices,
+            fetch=_fetch_units,
             write=_write_unit,
             sleep=asyncio.sleep,
             notify=_notify_idle_unit,
@@ -598,7 +608,7 @@ async def _tick(config: AutomationConfig, state: "_EngineState") -> None:
     ):
         return
 
-    devices = await fetch_devices()
+    devices = await _fetch_units()
     now = datetime.now()
     monotonic = time.monotonic()
 

@@ -28,6 +28,12 @@ snapshot only ever refreshes behind a read, so the device sees at most the
 reads it saw before the snapshot existed. ``tick_s`` then only spaces retries
 of a failing serve-stale refresh.
 
+**Shared fetches.** A loop in this process that polls the same upstream on
+its own clock (the HVAC engine logs in to MELCloud every minute) fetches
+through :func:`refresh`, so its read also answers the endpoint: a reader
+arriving after the demand window lapsed finds data the loop just fetched
+instead of logging in again inside the request.
+
 **Writes.** A write in this process either applies its read-back as a patch
 (:meth:`ReadSnapshot.update`) or marks the snapshot dirty
 (:meth:`ReadSnapshot.invalidate`) so the next read refetches. Both are
@@ -73,6 +79,17 @@ _REGISTRY: Dict[str, "ReadSnapshot[Any]"] = {}
 def registered() -> List["ReadSnapshot[Any]"]:
     """Every snapshot constructed so far (each wired router declares one)."""
     return list(_REGISTRY.values())
+
+
+async def refresh(name: str, fetch: Callable[[], Awaitable[T]]) -> T:
+    """Fetch with ``fetch`` and install the result in the named snapshot.
+
+    A plain fetch when that snapshot's router isn't loaded.
+    """
+    snap = _REGISTRY.get(name)
+    if snap is None:
+        return await fetch()
+    return await snap.refresh(fetch)
 
 
 def invalidate(name: str) -> None:
@@ -161,14 +178,25 @@ class ReadSnapshot(Generic[T]):
                 self.name, exc,
             )
 
-    async def _refresh(self, reason: str) -> None:
-        """Fetch and install. Caller holds ``self._lock``."""
+    async def refresh(self, fetch: Optional[Callable[[], Awaitable[T]]] = None) -> T:
+        """Fetch now (with ``fetch``, else the snapshot's own) and install it.
+
+        For a caller that needs fresh data anyway; not a demand, so the tick
+        stays idle unless someone reads. A fetch error propagates.
+        """
+        async with self._lock:
+            return await self._refresh("shared", fetch)
+
+    async def _refresh(
+        self, reason: str, fetch: Optional[Callable[[], Awaitable[T]]] = None
+    ) -> T:
+        """Fetch, install and return the installed value. Caller holds ``self._lock``."""
         start_seq = self._seq
         start = time.monotonic()
         self._attempted = start
         built_at = datetime.now().astimezone().isoformat(timespec="seconds")
         try:
-            value = await self._fetch()
+            value = await (fetch or self._fetch)()
         except Exception as exc:
             self._error = str(exc) or type(exc).__name__
             raise
@@ -182,6 +210,7 @@ class ReadSnapshot(Generic[T]):
             self._dirty_seq = 0
         self._value, self._built, self._built_at = value, start, built_at
         logger.debug("%s snapshot refreshed (%s) in %.2fs", self.name, reason, time.monotonic() - start)
+        return value
 
     def update(self, patch: Callable[[T], T]) -> None:
         """Apply a write's read-back now, and to any fetch still in flight."""
