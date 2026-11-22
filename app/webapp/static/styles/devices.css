@@ -36,7 +36,6 @@
 .blinds-all-row { border-bottom: 1px solid var(--line-muted); }
 /* The Offline fold: its chevron turns down while the plugs are listed. */
 .plugs-offline-row [aria-expanded="true"] .action-row-chevron { transform: rotate(90deg); }
-.group-foot-btn:disabled { color: var(--muted); cursor: not-allowed; }
 .device-rows .empty-state { padding: var(--space-md) 14px; }
 .sheet-section-head {
   display: flex;

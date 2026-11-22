@@ -93,23 +93,13 @@
   border-top: 1px solid var(--line-muted);
 }
 .group-foot:not(:has(> :not([hidden]))) { display: none; }
-.group-foot-btn {
-  min-height: var(--row-sm);
-  padding: 0 14px;
-  border: 0;
-  background: transparent;
-  color: var(--accent-text);
-  font: inherit;
-  font-size: var(--font-body-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-.group-foot-btn:last-child { margin-left: auto; }
-/* A foot holding vendored tint buttons (48px) pads them off the hairline; they
-   share a row and wrap to a second one rather than break a label. A quiet verb
-   in a foot is a .group-foot-btn, never a surface button stretched across it. */
-.group-foot:has(> .button-tint) { align-items: center; flex-wrap: wrap; padding: var(--space-sm) 14px; }
+/* A foot holding vendored buttons pads them off the hairline; they share a row
+   and wrap to a second one rather than break a label. A lone or trailing
+   surface verb sits at the trailing edge. */
+.group-foot:has(> .button-tint, > .button-surface) { align-items: center; flex-wrap: wrap; padding: var(--space-sm) 14px; }
 .group-foot > .button-tint { flex: 1 1 auto; white-space: nowrap; }
+.group-foot > .button-surface { white-space: nowrap; }
+.group-foot > .button-surface:last-child { margin-left: auto; }
 .group-links { border-top: 1px solid var(--line-muted); }
 .group-head + .group-links { border-top: 0; }
 .group-link .action-row-text { flex: 1; }
