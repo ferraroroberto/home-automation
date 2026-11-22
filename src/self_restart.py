@@ -83,8 +83,10 @@ _NO_WINDOW: int = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 #: The fleet tray's one canonical restart, run from the checkout root.
 #: Spelled through ``cmd.exe /c`` because CreateProcess does not run a batch
-#: file reliably on its own.
-TRAY_RESTART: tuple[str, ...] = ("cmd.exe", "/c", "tray.bat", "--restart")
+#: file reliably on its own. The batch file is path-qualified because ``cmd``
+#: skips the working directory when ``NoDefaultCurrentDirectoryInExePath`` is
+#: set (this fleet's Windows host sets it), so a bare ``tray.bat`` is not found.
+TRAY_RESTART: tuple[str, ...] = ("cmd.exe", "/c", ".\\tray.bat", "--restart")
 
 #: A tray restart reclaims ports, starts the tray and waits for the new build
 #: to answer; three minutes covers a cold start on a busy box.

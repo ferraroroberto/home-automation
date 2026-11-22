@@ -15,11 +15,13 @@
 }
 
 /* The readout is 12px text: the pseudo-element grows its touch target to the
-   fleet minimum without moving the footer's layout. */
+   fleet minimum without moving the footer's layout. The half pixel of slack per
+   side covers WebKit snapping the 1.1 line box below 1.1em, which would leave
+   the target a hair under the minimum. */
 .page-foot-restart::after {
   content: "";
   position: absolute;
-  inset: calc((var(--hit-min, 44px) - 1.1em) / -2) 0;
+  inset: calc((var(--hit-min, 44px) - 1.1em) / -2 - 0.5px) 0;
 }
 
 .restart-sheet-note {
