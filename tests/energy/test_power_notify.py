@@ -12,8 +12,10 @@ import json
 from pathlib import Path
 from typing import List, Optional
 
+import pytest
+
 import app.webapp.power_monitor as PM
-from app.webapp import power_notify
+from app.webapp import power_notify, read_snapshot
 from app.webapp.power_notify import FleetShutdownResult
 from src import activity_log
 from src.devices.pc_fleet_prefs import PcFleetPrefs
@@ -354,13 +356,32 @@ def test_default_tower_action_still_uses_the_os_shutdown(tmp_path: Path, monkeyp
 # ----------------------------------------------------- power_monitor.tick
 
 
+@pytest.fixture
+def poll_clock(monkeypatch) -> List[float]:
+    """The UPS snapshot registered and its clock under test control.
+
+    ``tick`` reads through the shared ``ups`` snapshot, which answers from
+    memory within ``max_age_s``; the monitor's ticks are a poll interval
+    apart, so :func:`_next_poll` advances the clock by one between them.
+    """
+    import app.webapp.routers.ups  # noqa: F401 — registers the "ups" snapshot
+
+    now = [1000.0]
+    monkeypatch.setattr(read_snapshot.time, "monotonic", lambda: now[0])
+    return now
+
+
+def _next_poll(clock: List[float]) -> None:
+    clock[0] += PM.DEFAULT_POLL_INTERVAL_S
+
+
 def _ups(mains_online: bool, runtime_seconds: int = 3600) -> UpsState:
     return UpsState(
         available=True, source="test", mains_online=mains_online, runtime_seconds=runtime_seconds
     )
 
 
-def test_monitor_baseline_then_transitions(monkeypatch) -> None:
+def test_monitor_baseline_then_transitions(monkeypatch, poll_clock) -> None:
     events: List[bool] = []
 
     async def fake_record_power_event(**kw) -> None:
@@ -376,10 +397,14 @@ def test_monitor_baseline_then_transitions(monkeypatch) -> None:
     assert events == []
     assert state.last_mains_online is True
 
+    _next_poll(poll_clock)
+
     holder["ups"] = _ups(False)
     asyncio.run(PM.tick(state))            # mains lost
+    _next_poll(poll_clock)
     holder["ups"] = _ups(False)
     asyncio.run(PM.tick(state))            # still on battery → no repeat
+    _next_poll(poll_clock)
     holder["ups"] = _ups(True)
     asyncio.run(PM.tick(state))            # restored
 
@@ -402,7 +427,7 @@ def test_monitor_ignores_unavailable_ups(monkeypatch) -> None:
 # --------------------------------------- power_monitor.tick — low-battery shutdown
 
 
-def test_monitor_triggers_shutdown_once_below_threshold(monkeypatch) -> None:
+def test_monitor_triggers_shutdown_once_below_threshold(monkeypatch, poll_clock) -> None:
     async def fake_record_power_event(**kw) -> None:
         pass
 
@@ -422,19 +447,27 @@ def test_monitor_triggers_shutdown_once_below_threshold(monkeypatch) -> None:
     state = PM._MonitorState()
     asyncio.run(PM.tick(state, prefs_loader=loader))  # baseline, online
 
+    _next_poll(poll_clock)
+
     holder["ups"] = _ups(False, runtime_seconds=1200)  # mains lost, 20min left — above threshold
     asyncio.run(PM.tick(state, prefs_loader=loader))
     assert shutdown_calls == []
     assert state.low_battery_shutdown_triggered is False
+
+    _next_poll(poll_clock)
 
     holder["ups"] = _ups(False, runtime_seconds=900)  # crosses the 15min threshold
     asyncio.run(PM.tick(state, prefs_loader=loader))
     assert shutdown_calls == ["15min runtime"]
     assert state.low_battery_shutdown_triggered is True
 
+    _next_poll(poll_clock)
+
     holder["ups"] = _ups(False, runtime_seconds=600)  # still low → no repeat trigger
     asyncio.run(PM.tick(state, prefs_loader=loader))
     assert shutdown_calls == ["15min runtime"]
+
+    _next_poll(poll_clock)
 
     holder["ups"] = _ups(True)  # mains restored → cancel the pending shutdown
     asyncio.run(PM.tick(state, prefs_loader=loader))
@@ -442,7 +475,7 @@ def test_monitor_triggers_shutdown_once_below_threshold(monkeypatch) -> None:
     assert state.low_battery_shutdown_triggered is False
 
 
-def test_monitor_threshold_read_from_prefs(monkeypatch) -> None:
+def test_monitor_threshold_read_from_prefs(monkeypatch, poll_clock) -> None:
     """The trigger point is PcFleetPrefs.threshold_minutes, not the constant:
     a 30-min pref must fire at 30 min of remaining runtime, not 15."""
 
@@ -462,6 +495,8 @@ def test_monitor_threshold_read_from_prefs(monkeypatch) -> None:
     loader = lambda: PcFleetPrefs(threshold_minutes=30)  # noqa: E731
     state = PM._MonitorState()
     asyncio.run(PM.tick(state, prefs_loader=loader))  # baseline
+
+    _next_poll(poll_clock)
 
     holder["ups"] = _ups(False, runtime_seconds=1500)  # 25min — under default 15 would NOT fire, but 25<30 does
     asyncio.run(PM.tick(state, prefs_loader=loader))
@@ -493,7 +528,7 @@ def test_monitor_threshold_falls_back_when_prefs_raise(monkeypatch) -> None:
     assert shutdown_calls == ["13min runtime"]
 
 
-def test_monitor_retries_after_shutdown_call_raises(monkeypatch) -> None:
+def test_monitor_retries_after_shutdown_call_raises(monkeypatch, poll_clock) -> None:
     """Regression for #990: an unreadable pc-fleet store must not permanently
     disable the safety shutdown for the rest of the outage.
 
@@ -524,12 +559,15 @@ def test_monitor_retries_after_shutdown_call_raises(monkeypatch) -> None:
     state = PM._MonitorState()
     asyncio.run(PM.tick(state, prefs_loader=loader))  # baseline, online
 
+    _next_poll(poll_clock)
+
     holder["ups"] = _ups(False, runtime_seconds=900)  # crosses threshold, call raises
     asyncio.run(PM.tick(state, prefs_loader=loader))
     assert shutdown_calls == []
     assert state.low_battery_shutdown_triggered is False  # must retry, not stick True
 
     should_raise["value"] = False
+    _next_poll(poll_clock)
     holder["ups"] = _ups(False, runtime_seconds=600)  # still on battery, retried tick
     asyncio.run(PM.tick(state, prefs_loader=loader))
     assert shutdown_calls == ["10min runtime"]
@@ -575,3 +613,28 @@ def test_monitor_unknown_runtime_never_triggers_shutdown(monkeypatch) -> None:
     asyncio.run(PM.tick(state))
 
     assert shutdown_calls == []
+
+
+def test_monitor_and_sampler_share_one_ups_read(monkeypatch, poll_clock) -> None:
+    import app.webapp.routers.ups as ups_router
+    import app.webapp.telemetry_sampler as TS
+
+    reads: List[int] = []
+
+    def fake_fetch() -> UpsState:
+        reads.append(1)
+        return _ups(True)
+
+    monkeypatch.setattr(PM, "fetch_ups_state", fake_fetch)
+    monkeypatch.setattr(ups_router, "fetch_ups_state", fake_fetch)
+    monkeypatch.setattr("src.energy.ups_client.fetch_ups_state", fake_fetch)
+
+    async def run() -> None:
+        await PM.tick(PM._MonitorState())
+        await TS._collect_ups()  # within max_age_s: the monitor's read answers it
+        await ups_router.UPS_SNAPSHOT.read()  # and the endpoint's
+        poll_clock[0] += ups_router.UPS_SNAPSHOT.max_age_s + 1
+        await TS._collect_ups()  # past the bound: one fresh read
+
+    asyncio.run(run())
+    assert len(reads) == 2

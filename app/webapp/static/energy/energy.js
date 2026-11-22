@@ -57,7 +57,6 @@ const DEFAULT_RANGE = 'day';  // the History period state.range starts at
 const CO2_KG_PER_KWH = 0.4;       // grid emission factor (kg CO₂ avoided / kWh)
 const CO2_KG_PER_TREE_YEAR = 21;  // sequestration per tree-year
 
-let todayTimer = null;
 let energyLastGood = null;
 const energyView = createViewState('energyLive');
 
@@ -771,9 +770,10 @@ export function wireEnergyControls() {
 // --------------------------------------------------------- cadence + tabs
 const schedule = createPoller(loadEnergy);
 
+const scheduleTodayPoll = createPoller(loadToday);
+
 function scheduleToday(on) {
-  if (todayTimer) { clearInterval(todayTimer); todayTimer = null; }
-  if (on) todayTimer = setInterval(loadToday, TODAY_MS);
+  scheduleTodayPoll(on ? TODAY_MS : 0);
 }
 
 // Called by the tab switcher whenever the active tab changes.

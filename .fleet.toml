@@ -67,6 +67,8 @@ instruction_frontmatter = { src = "scripts/instruction_frontmatter.py", sha = "c
 instruction_repeats = { src = "scripts/instruction_repeats.py", sha = "c5535ac326c398df8f44486f386ff0e0b6d4c61c", dest = "scripts/instruction_repeats.py" }
 toast = { src = "app/webapp/static/_vendored/toast", sha = "e56c8330f8500b83635773033a09de6fc3cba342", dest = "app/webapp/static/_vendored/toast" }
 build-watch = { src = "app/webapp/static/_vendored/build-watch", sha = "2d871dd5a6a3ee6fe12a3c5c6439d2c53a93c2c4", dest = "app/webapp/static/_vendored/build-watch" }
+poll = { src = "app/webapp/static/_vendored/poll", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "app/webapp/static/_vendored/poll" }
+request_budget_probe = { src = "tests/e2e/budget/_request_budget.py", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "tests/e2e/_request_budget.py" }
 self_restart = { src = "src/self_restart.py", sha = "3f1dcc76d5ba40c8b3d12a80a99659816ce1dd0e", dest = "src/self_restart.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
@@ -310,6 +312,13 @@ views        = ["/"]
 # paths fail safe to "full" (scripts/classify_e2e.py); this table only ever
 # narrows what an already-recognized-as-narrow diff runs, never what an
 # unmatched one runs. Update in the same PR as any new e2e-relevant directory.
+# [request_budget] -- the dashboard's polling budget (project-scaffolding
+# docs/polling-budget.md). tests/e2e/test_request_budget.py loads Home on a fake
+# clock with every API answered by a stub and counts requests for a visible
+# minute (at most this many), a hidden minute (none) and the return (one per path).
+[request_budget]
+visible_requests_per_minute = 35
+
 [e2e]
 static_pytest_target = "tests/e2e/test_smoke.py"
 static_browsers       = ["chromium"]

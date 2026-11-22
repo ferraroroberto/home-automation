@@ -96,7 +96,9 @@ async def _collect_plugs() -> list:
 async def _collect_ups() -> list:
     from src.energy.ups_client import fetch_ups_state
 
-    return adapters.ups_readings(await asyncio.to_thread(fetch_ups_state))
+    return adapters.ups_readings(
+        await read_snapshot.read_fresh("ups", lambda: asyncio.to_thread(fetch_ups_state))
+    )
 
 
 async def _collect_lights() -> list:

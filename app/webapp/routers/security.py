@@ -61,7 +61,9 @@ router = APIRouter()
 
 # The raw panel state, refreshed off the request path at the PWA's 10 s poll
 # instead of a RISCO Cloud round trip (~1 s) per read. Names, hidden
-# and trouble-ignore flags are still layered on per request.
+# and trouble-ignore flags are still layered on per request. The presence loop
+# reads it too (``read_snapshot.read_fresh``), so the app has one RISCO reader:
+# this tick while the tab is watched, a read every ``max_age_s`` otherwise.
 SECURITY_SNAPSHOT: ReadSnapshot[Any] = ReadSnapshot(
     "security",
     lambda: fetch_security_state(),  # looked up per call, so tests can patch it

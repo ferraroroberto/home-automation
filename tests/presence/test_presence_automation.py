@@ -756,3 +756,86 @@ def test_presence_tick_never_moves_blinds_when_the_action_failed(monkeypatch) ->
     asyncio.run(PA.tick())
 
     assert _FOLLOWED == []
+
+
+def _count_security_logins(monkeypatch) -> list:
+    """Wire a presence tick with no decision and count its RISCO reads on a fake clock."""
+    import app.webapp.read_snapshot as RS
+    import app.webapp.routers.security  # noqa: F401 — registers the "security" snapshot
+
+    _wire_common(monkeypatch)
+    monkeypatch.setattr(PA, "_evaluate_current_decision", lambda *a, **k: None)
+    logins: list = []
+
+    async def fake_fetch_security_state() -> _FakeSecurity:
+        logins.append(RS.time.monotonic())
+        return _FakeSecurity("disarmed")
+
+    monkeypatch.setattr(PA, "fetch_security_state", fake_fetch_security_state)
+    monkeypatch.setattr(
+        "app.webapp.routers.security.fetch_security_state", fake_fetch_security_state
+    )
+    now = [1000.0]
+    monkeypatch.setattr(RS.time, "monotonic", lambda: now[0])
+    return [logins, now]
+
+
+def test_presence_tick_with_no_tab_logs_in_only_at_the_snapshot_cadence(monkeypatch) -> None:
+    from app.webapp.routers.security import SECURITY_SNAPSHOT
+
+    logins, now = _count_security_logins(monkeypatch)
+
+    async def ten_minutes() -> None:
+        for _ in range(60):  # the presence loop's 10 s poll
+            await PA.tick()
+            now[0] += 10
+
+    asyncio.run(ten_minutes())
+    # One login per max_age_s window (20 s): at exact 10 s steps a read at
+    # age 20 still serves from memory, so every third tick logs in. Reading
+    # RISCO itself every tick would be 60.
+    assert len(logins) == 20
+    assert all(b - a > SECURITY_SNAPSHOT.max_age_s for a, b in zip(logins, logins[1:]))
+
+
+def test_presence_tick_with_a_tab_open_adds_no_login_of_its_own(monkeypatch) -> None:
+    from app.webapp.routers.security import SECURITY_SNAPSHOT
+
+    logins, now = _count_security_logins(monkeypatch)
+
+    async def ten_minutes() -> None:
+        for _ in range(60):
+            await SECURITY_SNAPSHOT.read()  # the tab's poll keeps the demand window open
+            await SECURITY_SNAPSHOT.tick_once()  # the endpoint's own 10 s refresh
+            now[0] += 5
+            await PA.tick()  # half a period later, served from that refresh
+            now[0] += 5
+
+    asyncio.run(ten_minutes())
+    # Only the endpoint's cadence: one login per 10 s. Presence reading RISCO
+    # itself alongside would double it to 120.
+    assert len(logins) == 60
+
+
+def test_presence_coordinated_recheck_forces_a_fresh_read(monkeypatch) -> None:
+    from app.webapp.routers.security import SECURITY_SNAPSHOT
+
+    logins, _now = _count_security_logins(monkeypatch)
+
+    async def fake_confirm(action: str) -> _FakeConfirmState:
+        return _FakeConfirmState("armed")
+
+    async def fake_record_alarm_action(**kw) -> None:
+        pass
+
+    calls = iter([_DECISION, _DECISION])
+    monkeypatch.setattr(PA, "_evaluate_current_decision", lambda *a, **k: next(calls))
+    monkeypatch.setattr(PA, "confirm_alarm_action", fake_confirm)
+    monkeypatch.setattr(PA, "record_alarm_action", fake_record_alarm_action)
+    monkeypatch.setattr(PA, "mark_decision_applied", lambda decision, outcome: None)
+
+    asyncio.run(PA.tick())
+    # The first read fetched, and the re-check before actuating fetched again
+    # rather than trusting the snapshot it had just filled.
+    assert len(logins) == 2
+    assert SECURITY_SNAPSHOT.describe()["age_seconds"] == 0.0
