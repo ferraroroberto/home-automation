@@ -238,12 +238,13 @@ def test_a_newer_schedule_supersedes_an_older_pending_retry(house, lan, clock) -
     assert outcome == "ok" and extra["superseded"] == ["blind-2"]
 
 
-# ---------------------------------------------- Stop mid-move, manual taps (#899)
+# ---------------------------------------------- Stop / reverse mid-move (#1264)
 class HeldLan(FakeLan):
-    """A blind whose "open" hangs until released: an unresponsive blind mid-move.
+    """Blinds whose "open" hangs until released: a slow blind mid-move.
 
-    ``received`` is what the blind actually acted on, in the order it did:
-    a send counts once its call returns, as on the real LAN.
+    ``received`` is what the blinds actually acted on, in the order they did:
+    a send counts once its call returns, as on the real LAN. ``delivered_while_held``
+    snapshots ``received`` the moment the test releases the held opens.
     """
 
     def __init__(self) -> None:
@@ -268,31 +269,74 @@ def held(monkeypatch: pytest.MonkeyPatch, lan: FakeLan) -> HeldLan:
     return fake
 
 
-def _tap_while_open_is_held(held: HeldLan, *later: str) -> List[List[B.BlindOutcome]]:
-    """Tap "open" on blind-2, then each of ``later`` while the open hangs."""
-    async def _go() -> List[List[B.BlindOutcome]]:
-        first = asyncio.create_task(B.move_blinds("open", ["blind-2"]))
+def _tap_while_open_is_held(
+    held: HeldLan, *later: str, targets: Optional[List[str]] = None
+) -> tuple[List[List[B.BlindOutcome]], List[tuple]]:
+    """Tap "open" on ``targets`` (default blind-2), then each of ``later`` while it hangs.
+
+    Returns every tap's outcomes and what the blinds received before the
+    held opens were released.
+    """
+    ids = targets or ["blind-2"]
+
+    async def _go() -> tuple[List[List[B.BlindOutcome]], List[tuple]]:
+        first = asyncio.create_task(B.move_blinds("open", ids))
         assert await asyncio.to_thread(held.entered.wait, 5)
-        taps = [asyncio.create_task(B.move_blinds(a, ["blind-2"])) for a in later]  # type: ignore[arg-type]
-        await asyncio.sleep(0.2)  # the later taps reach the blind's queue
+        taps = []
+        for action in later:
+            taps.append(asyncio.create_task(B.move_blinds(action, ids)))  # type: ignore[arg-type]
+            await asyncio.sleep(0.1)  # taps reach the blinds in tap order
+        await asyncio.sleep(0.2)
+        with held._lock:
+            while_held = list(held.received)
         held.release.set()
-        return list(await asyncio.gather(first, *taps))
+        return list(await asyncio.gather(first, *taps)), while_held
 
     return asyncio.run(_go())
 
 
-def test_stop_tapped_mid_move_lands_after_the_move_never_before(held) -> None:
-    """The last command tapped is the last one the blind receives."""
-    _tap_while_open_is_held(held, "stop")
-    assert held.received == [("blind-2", "open"), ("blind-2", "stop")]
-
-
-def test_a_stale_command_queued_behind_the_move_is_dropped(held) -> None:
-    """Down then Stop tapped while Up hangs: Stop is sent, Down never is."""
-    _up, down, stop = _tap_while_open_is_held(held, "close", "stop")
-    assert held.received == [("blind-2", "open"), ("blind-2", "stop")]
-    assert down[0].superseded and not down[0].ok
+def test_stop_mid_move_reaches_the_blind_at_once_and_stays_last(held) -> None:
+    """Stop is not queued behind the slow open, and is re-sent after it returns."""
+    (_up, stop), while_held = _tap_while_open_is_held(held, "stop")
+    assert while_held == [("blind-2", "stop")]
+    assert held.received[-1] == ("blind-2", "stop")
     assert stop[0].ok and not stop[0].superseded
+
+
+def test_reverse_mid_move_reaches_the_blind_at_once_and_stays_last(held) -> None:
+    (_up, down), while_held = _tap_while_open_is_held(held, "close")
+    assert while_held == [("blind-2", "close")]
+    assert held.received[-1] == ("blind-2", "close")
+    assert down[0].ok
+
+
+def test_all_blinds_stop_mid_move_reaches_every_blind_at_once(held) -> None:
+    """The group buttons: Stop reaches every blind while each one's open hangs."""
+    (_up, stop), while_held = _tap_while_open_is_held(
+        held, "stop", targets=["blind-1", "blind-2"]
+    )
+    assert sorted(while_held) == [("blind-1", "stop"), ("blind-2", "stop")]
+    for blind in ("blind-1", "blind-2"):
+        mine = [a for d, a in held.received if d == blind]
+        assert mine[-1] == "stop"
+    assert all(o.ok for o in stop)
+
+
+def test_down_then_stop_mid_move_ends_on_stop(held) -> None:
+    """Down then Stop tapped while Up hangs: both go out at once, Stop stays last."""
+    (_up, down, stop), while_held = _tap_while_open_is_held(held, "close", "stop")
+    assert while_held == [("blind-2", "close"), ("blind-2", "stop")]
+    assert held.received[-1] == ("blind-2", "stop")
+    assert down[0].ok and stop[0].ok
+
+
+def test_a_stale_send_still_waiting_its_turn_is_dropped(lan) -> None:
+    """A command a newer one superseded before it was sent never goes out."""
+    stale = B.note_blind_command(["blind-2"])
+    B.note_blind_command(["blind-2"])
+    outcome = B._send_newest("blind-2", "open", stale)
+    assert outcome.superseded and not outcome.ok
+    assert lan.sent == []
 
 
 def test_stop_cancels_the_pending_retry_of_a_failed_move(house, lan, clock) -> None:

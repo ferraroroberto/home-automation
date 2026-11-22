@@ -377,6 +377,38 @@ def _blind_has_labelled_controls(
     page.locator('[data-device-id="cover-1"] .blind-btn[data-action="open"]').click()
 
 
+def _blind_stop_and_reverse_stay_pressable_mid_move(
+    page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+) -> None:
+    # A blind slow to answer mid-move reads as offline; it keeps Up · Stop · Down.
+    offline = [
+        {**d, "reachable": False} if d["device_id"] == "cover-1" else d for d in sample_plugs
+    ]
+    page.set_viewport_size({"width": 390, "height": 844})
+    _boot_plugs(page, base_url, sample_units, offline, mock_api, mock_energy, mock_tuya)
+    buttons = page.locator('[data-device-id="cover-1"] .blind-btn')
+    expect(buttons).to_have_count(3)
+
+    # Up's request stays open (a slow blind); Stop and Down still go out.
+    held: List = []
+
+    def _hold_up(route) -> None:
+        if (route.request.post_data_json or {}).get("action") == "open":
+            held.append(route)
+        else:
+            route.fallback()
+
+    page.route("**/api/tuya/cover-1/cover", _hold_up)
+    with page.expect_request("**/api/tuya/cover-1/cover"):
+        buttons.nth(0).click()
+    for index, action in ((1, "stop"), (2, "close")):
+        expect(buttons.nth(index)).to_be_enabled()
+        with page.expect_request("**/api/tuya/cover-1/cover") as sent:
+            buttons.nth(index).click()
+        assert sent.value.post_data_json["action"] == action
+
+
 def _with_second_blind_and_light(sample_plugs: List[Dict]) -> List[Dict]:
     """sample_plugs plus a second blind and a Tuya light (#181)."""
     blank = {
@@ -603,7 +635,7 @@ def _power_card_keeps_its_height_when_the_plugs_land(
 def test_plugs_and_blinds(
     page: Page, base_url: str, request: pytest.FixtureRequest,
 ) -> None:
-    """Plugs, UPS and blinds: every device renders, loading/empty/unavailable per panel, last-good on failure, snapshot paint, offline fold, stable power card, then watts, stats, rename, switch, labelled blind controls, group buttons, Tuya light placement, confirmed add and dimmer."""
+    """Plugs, UPS and blinds: every device renders, loading/empty/unavailable per panel, last-good on failure, snapshot paint, offline fold, stable power card, then watts, stats, rename, switch, labelled blind controls, mid-move Stop and reverse, group buttons, Tuya light placement, confirmed add and dimmer."""
     run_flow(
         request, page, base_url,
         _plugs_tab_renders_all_devices,
@@ -622,6 +654,7 @@ def test_plugs_and_blinds(
         _plug_rename_round_trips,
         _switch_toggle_round_trips,
         _blind_has_labelled_controls,
+        _blind_stop_and_reverse_stay_pressable_mid_move,
         _blinds_group_buttons_move_every_listed_blind,
         _tuya_light_lists_under_lights_not_plugs,
         _add_device_is_gated_by_a_confirm,
