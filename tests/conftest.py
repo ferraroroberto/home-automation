@@ -40,6 +40,14 @@ os.environ["APP_PASSWORD_FILE"] = str(Path(tempfile.mkdtemp(prefix="home-automat
 os.environ["HOME_AUTOMATION_DATA_DIR"] = tempfile.mkdtemp(prefix="home-automation-data-")
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers",
+        "windows_only: needs a Windows-only API; the Mac nightly's unit leg deselects it "
+        "(.fleet.toml [windows_only_ratchet] fails an unmarked one)",
+    )
+
+
 @pytest.fixture(autouse=True)
 def _isolate_activity_stores(tmp_path, monkeypatch) -> None:
     """Point telemetry + JSONL activity logs at per-test temp paths."""
