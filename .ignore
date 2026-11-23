@@ -12,6 +12,7 @@
 /app/webapp/static/_vendored/modal
 /app/webapp/static/_vendored/nav
 /app/webapp/static/_vendored/page-foot
+/app/webapp/static/_vendored/poll
 /app/webapp/static/_vendored/rec-wave
 /app/webapp/static/_vendored/segmented
 /app/webapp/static/_vendored/sign-in
@@ -30,6 +31,8 @@
 /scripts/instruction_frontmatter.py
 /scripts/instruction_ratchet.py
 /scripts/instruction_repeats.py
+/scripts/request_budget_ratchet.py
+/scripts/request_budget_scan.py
 /scripts/runtime_write_ratchet.py
 /scripts/runtime_write_resolve.py
 /scripts/shot_baseline.py
@@ -46,6 +49,7 @@
 /src/login_lockout.py
 /src/notify
 /src/password.py
+/src/request_timing.py
 /src/runtime_data.py
 /src/self_restart.py
 /src/usage_log.py
@@ -53,6 +57,7 @@
 /tests/e2e/_e2e_live_guard.py
 /tests/e2e/_geometry.py
 /tests/e2e/_paced_browser.py
+/tests/e2e/_request_budget.py
 /tests/e2e/_shot.py
 /tests/e2e/_surface.py
 # END vendored-copies
