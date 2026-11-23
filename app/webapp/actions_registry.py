@@ -16,7 +16,6 @@ activity log as tapping the Security tab — not just the same panel state.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any, Awaitable, Callable, Dict, Optional
 
@@ -25,6 +24,7 @@ import aiohttp
 from app.webapp import read_snapshot
 from app.webapp.alarm_notify import perform_manual_alarm_action
 from src.devices.tuya_client import set_switch
+from src.pools import ON_DEMAND, run_in
 from src.quick_action_config import (
     QuickActionsConfig,
     load_quick_actions_config,
@@ -59,7 +59,7 @@ Handler = Callable[[str, Optional[aiohttp.ClientSession]], Awaitable[Dict[str, A
 
 async def _plug_action(device_id: str, on: bool) -> Dict[str, Any]:
     try:
-        await asyncio.to_thread(set_switch, device_id, on)
+        await run_in(ON_DEMAND, set_switch, device_id, on)
     finally:
         read_snapshot.invalidate("tuya")  # /api/tuya refetches on its next read
     return {"device_id": device_id, "switch_on": on}

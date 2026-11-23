@@ -17,7 +17,6 @@ imports it from here, kept separate from the host probes and router source.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 from typing import Optional
@@ -32,6 +31,7 @@ from src.network.network_types import (
     _normalise_mac,
     _require,
 )
+from src.pools import HOT_POLL, run_in
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +124,7 @@ def _fetch_ap_sync(host_override: Optional[str] = None) -> tuple[AccessPointHeal
 async def fetch_access_point() -> tuple[AccessPointHealth, list[NetDevice]]:
     """Async wrapper around the blocking pynetgear read."""
     try:
-        return await asyncio.to_thread(_fetch_ap_sync)
+        return await run_in(HOT_POLL, _fetch_ap_sync)
     except NetworkConfigError:
         raise
     except Exception as exc:

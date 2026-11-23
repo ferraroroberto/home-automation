@@ -11,7 +11,6 @@ devices; complete verifies it on the SAME live pyicloud session (see
 
 from __future__ import annotations
 
-import asyncio
 import re
 from typing import Any, Dict
 
@@ -19,6 +18,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.webapp.presence_refresher import refresh_once
+from src.pools import ON_DEMAND, run_in
 from src.presence.presence_client import (
     PresenceConfig,
     PresenceConfigError,
@@ -67,7 +67,7 @@ async def post_icloud_trust_begin(account: str) -> Dict[str, Any]:
     until the account holder accepts updated terms — renewal can't fix that."""
 
     config = _icloud_account(account)
-    state = await asyncio.to_thread(begin_trust_renewal, config)
+    state = await run_in(ON_DEMAND, begin_trust_renewal, config)
     if state.status == "already_trusted":
         # The fresh trusted session was adopted; let the diagnostics say so now.
         await refresh_once()
@@ -87,7 +87,7 @@ async def post_icloud_trust_complete(account: str, payload: TrustCodePayload) ->
     code = payload.code.replace(" ", "").strip()
     if not _TRUST_CODE_RE.match(code):
         raise HTTPException(status_code=400, detail="code must be exactly 6 digits")
-    state = await asyncio.to_thread(complete_trust_renewal, config, code)
+    state = await run_in(ON_DEMAND, complete_trust_renewal, config, code)
     if state.status == "trusted":
         # Re-poll on the newly trusted session so diagnostics.accounts[].trusted
         # flips without waiting for the next background refresh.

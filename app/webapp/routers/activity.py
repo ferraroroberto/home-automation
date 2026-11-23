@@ -10,7 +10,6 @@ not here.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -21,6 +20,7 @@ from src.devices.display_names import load_display_names
 from src.devices.elgato_display_names import load_elgato_display_names
 from src.devices.tuya_display_names import load_tuya_display_names
 from src.energy.circuit_prefs import load_circuit_display_names
+from src.pools import HOT_POLL, run_in
 from src.presence.presence_display_names import load_presence_display_names
 from src.security.security_display_names import load_security_display_names
 
@@ -84,7 +84,7 @@ async def get_activity(
     """
     safe_limit = max(1, min(int(limit or 100), _MAX_LIMIT))
     try:
-        events: List[Dict[str, Any]] = await asyncio.to_thread(
+        events: List[Dict[str, Any]] = await run_in(HOT_POLL,
             telemetry.read_events,
             domain=domain or None,
             event_type=type or None,
@@ -101,7 +101,7 @@ async def get_activity(
 async def get_activity_domains() -> Dict[str, Any]:
     """Distinct domains present in the store — populates the UI filter dropdown."""
     try:
-        rows = await asyncio.to_thread(telemetry.read_events, limit=_MAX_LIMIT)
+        rows = await run_in(HOT_POLL, telemetry.read_events, limit=_MAX_LIMIT)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  Failed to read activity domains: %s", exc)
         raise HTTPException(status_code=500, detail="failed to read activity log")
@@ -124,7 +124,7 @@ async def get_readings(
     """
     safe_limit = max(1, min(int(limit or 200), _MAX_LIMIT))
     try:
-        readings: List[Dict[str, Any]] = await asyncio.to_thread(
+        readings: List[Dict[str, Any]] = await run_in(HOT_POLL,
             telemetry.read_readings,
             domain=domain or None,
             entity_id=entity or None,

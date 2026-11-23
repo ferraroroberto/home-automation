@@ -19,7 +19,6 @@ persistence module, no shared state with the live RISCO read/write path here).
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import asdict
 from datetime import datetime
@@ -37,6 +36,7 @@ from app.webapp.routers._helpers import (
     make_http_error_mapper,
 )
 from src import telemetry
+from src.pools import HOT_POLL, run_in
 from src.security.risco_client import (
     ACTIONS,
     RiscoCommandError,
@@ -165,7 +165,7 @@ async def get_security_events(count: int = 50) -> Dict[str, Any]:
     safe_count = max(1, min(int(count or 50), 100))
     try:
         events = await fetch_events(count=safe_count)
-        await asyncio.to_thread(_persist_risco_events, events)
+        await run_in(HOT_POLL, _persist_risco_events, events)
         return _events_payload(events)
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)

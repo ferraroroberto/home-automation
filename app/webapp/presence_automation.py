@@ -31,6 +31,7 @@ from app.webapp.security_override_automation import (
 )
 from src._schedule_store import StoreUnreadableError
 from src.notify_config import notify_best_effort
+from src.pools import BACKGROUND, run_in
 from src.presence.presence_blocks import (
     mark_arm_block_attempted,
     mark_arm_block_notified,
@@ -553,7 +554,7 @@ async def _report_decision_result(decision, failure: Optional[Exception]) -> Non
         # send_push is blocking network I/O (one pywebpush HTTP POST per
         # subscription) and this tick shares uvicorn's single event loop —
         # thread it off so a slow/failing push can't stall the webapp.
-        await asyncio.to_thread(
+        await run_in(BACKGROUND,
             send_push, "Presence automation", f"{decision.reason}: {decision.action}"
         )
         await record_alarm_action(

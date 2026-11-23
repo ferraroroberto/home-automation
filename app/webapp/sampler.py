@@ -10,7 +10,7 @@ Gated by ``ENERGY_SAMPLER_ENABLED`` (``.env``): disabled, the webapp serves the
 live snapshot + whatever history already exists but writes nothing — which is
 how the e2e suite and dev runs avoid hammering the real FusionSolar cloud.
 
-The blocking SQLite writes run via :func:`asyncio.to_thread` so the read part
+The blocking SQLite writes run on the ``src.pools`` background pool so the read part
 of the loop never stalls the event loop.
 """
 
@@ -30,6 +30,7 @@ from src.energy.energy_history import (
     record_sample,
 )
 from src.energy.huawei_client import fetch_energy_day, fetch_energy_state
+from src.pools import BACKGROUND, run_in
 
 logger = logging.getLogger(__name__)
 
@@ -44,14 +45,14 @@ class _SamplerState:
 async def _tick(config: EnergyHistoryConfig, state: _SamplerState) -> None:
     try:
         sample = await fetch_energy_state()
-        await asyncio.to_thread(record_sample, sample)
+        await run_in(BACKGROUND, record_sample, sample)
     except Exception as exc:  # noqa: BLE001 — never let a read kill the loop
         logger.warning("⚠️ Energy sample failed: %s", exc)
 
     now = time.monotonic()
     if now - state.last_compact >= config.compact_interval_s:
         try:
-            await asyncio.to_thread(compact_and_prune, config)
+            await run_in(BACKGROUND, compact_and_prune, config)
         except Exception as exc:  # noqa: BLE001
             logger.warning("⚠️ Energy compaction failed: %s", exc)
         state.last_compact = now
@@ -81,7 +82,7 @@ async def _backfill_today() -> None:
             record_sample(sample, ts=ts)
 
     try:
-        await asyncio.to_thread(_write)
+        await run_in(BACKGROUND, _write)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️ Energy backfill write failed: %s", exc)
         return
@@ -90,7 +91,7 @@ async def _backfill_today() -> None:
 
 async def _run(config: EnergyHistoryConfig) -> None:
     """Sample → persist → periodically compact, until cancelled."""
-    await asyncio.to_thread(init_db)
+    await run_in(BACKGROUND, init_db)
     await _backfill_today()
     state = _SamplerState()
     await run_loop(

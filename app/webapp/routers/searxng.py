@@ -12,12 +12,12 @@ reads the state back (the ``units.py`` write-then-read idiom). A missing
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
 
+from src.pools import HOT_POLL, ON_DEMAND, run_in
 from src.voice.searxng_client import (
     SearxngCommandError,
     SearxngConfigError,
@@ -34,7 +34,7 @@ router = APIRouter()
 async def get_searxng() -> Dict[str, Any]:
     """Return the SearXNG container's live status."""
     try:
-        state = await asyncio.to_thread(fetch_searxng_state)
+        state = await run_in(HOT_POLL, fetch_searxng_state)
     except SearxngCommandError as exc:
         logger.warning("⚠️  SearXNG status read failed: %s", exc)
         raise HTTPException(status_code=502, detail=str(exc))
@@ -45,7 +45,7 @@ async def get_searxng() -> Dict[str, Any]:
 async def control_searxng_start() -> Dict[str, Any]:
     """Bring the SearXNG container up (idempotent) and return the read-back state."""
     try:
-        state = await asyncio.to_thread(start_searxng)
+        state = await run_in(ON_DEMAND, start_searxng)
     except SearxngConfigError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except SearxngCommandError as exc:

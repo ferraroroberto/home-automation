@@ -280,7 +280,7 @@ def record_readings(
     flooded with meaningless "—" entries. A present numeric ``0`` is kept, and a
     genuinely-missing numeric alongside a text value still records (asleep ≠ 0
     only matters where there is something to record). Blocking SQLite — callers
-    on the event loop wrap this in :func:`asyncio.to_thread`.
+    on the event loop run it on a ``src.pools`` pool.
     """
     rows = [r for r in rows if r.value_num is not None or r.value_txt is not None]
     if not rows:

@@ -18,6 +18,7 @@ from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop
 from src.notify import Notifier, NotifierError
 from src.notify_config import build_alarm_notifier
+from src.pools import BACKGROUND, run_in
 from src.presence.presence_client import (
     TERMS_REQUIRED_DETAIL,
     PresenceAuthError,
@@ -528,7 +529,7 @@ async def refresh_once(
     prev_by_label = {status.label: status for status in _CACHE.accounts}
     results = await asyncio.gather(
         *(
-            asyncio.to_thread(
+            run_in(BACKGROUND,
                 _fetch_account,
                 config,
                 prev_status=prev_by_label.get(config.label),

@@ -134,7 +134,7 @@ Already prototyped in `src/network/network_client.py` as frozen dataclasses, mir
 
 `fetch_network_state(include_speedtest=False)` runs the three sources
 concurrently (`asyncio.gather`); the blocking `pynetgear`/`speedtest` calls go
-through `asyncio.to_thread`.
+through `src.pools.run_in` on a named thread pool.
 
 ## Device inventory & the DHCP/wireless merge
 

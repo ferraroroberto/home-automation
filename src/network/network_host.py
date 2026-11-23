@@ -17,7 +17,6 @@ orchestrator imports both from here.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import re
@@ -37,6 +36,7 @@ from src.network.network_types import (
     WifiDiagnostics,
     _normalise_mac,
 )
+from src.pools import BACKGROUND, HOT_POLL, run_in
 
 logger = logging.getLogger(__name__)
 
@@ -132,14 +132,14 @@ async def fetch_internet_health(
         load_dotenv(override=True)
         gateway = (os.getenv("NETWORK_ROUTER_HOST") or "").strip() or None
 
-    ext_ms, loss = await asyncio.to_thread(_ping, _EXTERNAL_PROBE_HOST)
+    ext_ms, loss = await run_in(HOT_POLL, _ping, _EXTERNAL_PROBE_HOST)
     gw_ms = None
     if gateway:
-        gw_ms, _ = await asyncio.to_thread(_ping, gateway, 2)
+        gw_ms, _ = await run_in(HOT_POLL, _ping, gateway, 2)
 
     down = up = server = None
     if include_speedtest:
-        down, up, server = await asyncio.to_thread(_run_speedtest)
+        down, up, server = await run_in(BACKGROUND, _run_speedtest)
 
     return InternetHealth(
         online=ext_ms is not None,
@@ -543,7 +543,7 @@ def _fetch_wifi_diagnostics_sync() -> WifiDiagnostics:
 async def fetch_wifi_diagnostics() -> WifiDiagnostics:
     """Read the server PC's own Wi-Fi view; failures stay local to this block."""
     try:
-        return await asyncio.to_thread(_fetch_wifi_diagnostics_sync)
+        return await run_in(HOT_POLL, _fetch_wifi_diagnostics_sync)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️ Wi-Fi diagnostics failed: %s", exc)
         return WifiDiagnostics(available=False, error=str(exc))

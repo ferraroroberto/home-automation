@@ -91,6 +91,7 @@ from src.network.network_types import (  # noqa: F401 — re-exported public sur
     _normalise_mac,
     _require,
 )
+from src.pools import HOT_POLL, ON_DEMAND, PROBE, run_in
 
 logger = logging.getLogger(__name__)
 
@@ -271,7 +272,7 @@ async def fetch_dhcp_bindings() -> list[dict]:
     Raises on a login/read failure — the planner falls back to a binding-less plan
     rather than presenting a misleading one as already-applied.
     """
-    return await asyncio.to_thread(_fetch_dhcp_bindings_sync)
+    return await run_in(HOT_POLL, _fetch_dhcp_bindings_sync)
 
 
 def _apply_dhcp_bindings_sync(rows: list[Mapping[str, str]]) -> list[dict]:
@@ -290,7 +291,7 @@ async def apply_dhcp_bindings(rows: list[Mapping[str, str]]) -> list[dict]:
     so a single rejected row can't silently drop the rest. **Only ever called from
     an explicit, confirm-gated user action** — never on a poll.
     """
-    return await asyncio.to_thread(_apply_dhcp_bindings_sync, rows)
+    return await run_in(ON_DEMAND, _apply_dhcp_bindings_sync, rows)
 
 
 def _apply_dhcp_changes_sync(
@@ -331,7 +332,7 @@ async def apply_dhcp_changes(
     ``add``); a single failure is recorded, not raised. **Only ever called from an
     explicit, confirm-gated user action** — never on a poll.
     """
-    return await asyncio.to_thread(
+    return await run_in(ON_DEMAND,
         _apply_dhcp_changes_sync, list(remove_inst_ids), list(add_rows)
     )
 
@@ -381,7 +382,7 @@ async def _probe_nolink_devices(devices: list[NetDevice]) -> list[NetDevice]:
     if to_probe:
         probed = await _with_timeout(
             "ping probe",
-            asyncio.gather(*(asyncio.to_thread(_ping_reachable, d.ip) for d in to_probe)),
+            asyncio.gather(*(run_in(PROBE, _ping_reachable, d.ip) for d in to_probe)),
             _PING_PROBE_TIMEOUT_S,
             None,
         )
@@ -432,7 +433,7 @@ def _derive_alerts(
 async def _with_timeout(label: str, coro, timeout_s: float, fallback):
     """Return *fallback* if one source exceeds its budget.
 
-    ``asyncio.to_thread`` work cannot be force-killed, but bounding the awaited
+    Work on a worker thread cannot be force-killed, but bounding the awaited
     result keeps ``GET /api/network`` responsive and lets faster sources render.
     """
     try:
@@ -491,7 +492,7 @@ async def fetch_network_state(include_speedtest: bool = False) -> NetworkState:
                 )
                 try:
                     ap, devices = await asyncio.wait_for(
-                        asyncio.to_thread(_fetch_ap_sync, candidate),
+                        run_in(PROBE, _fetch_ap_sync, candidate),
                         timeout=_ACCESS_POINT_REDISCOVER_TIMEOUT_S,
                     )
                     if ap.reachable:

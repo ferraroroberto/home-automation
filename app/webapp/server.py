@@ -57,6 +57,7 @@ import asyncio
 import contextlib
 import logging
 import logging.handlers
+import math
 import mimetypes
 import os
 from contextlib import asynccontextmanager
@@ -131,6 +132,7 @@ from src.automation_owner import AutomationOwnership, automation_engines_opt_in
 from src.compression import StreamSafeGZipMiddleware
 from src.devices.camera_token import verify as _verify_camera_token
 from src.push_notifications import validate_push_config
+from src.request_timing import RequestTimingMiddleware, default_executor
 from src.runtime_data import runtime_data_dir, runtime_db_path
 from src.self_restart import RestartTarget, restart_router
 from src.usage_log import usage_router
@@ -265,6 +267,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception as exc:  # noqa: BLE001 — a config check must never block boot
         logger.warning("⚠️  Quick-action config check failed: %s", exc)
 
+    # Blocking work runs on src.pools' named pools; what still lands on the
+    # loop's default pool (a library's DNS lookup, say) is timed the same way.
+    asyncio.get_running_loop().set_default_executor(default_executor())
+
     # One shared outbound pool for request-driven HA + Voice Transcriber calls.
     # In particular, live dictation sends a chunk every second; reusing this
     # pool avoids constructing a new client/socket pool for every chunk.
@@ -358,6 +364,10 @@ def create_app() -> FastAPI:
         ),
     )
 
+    # Splits each API answer's thread time into queueing and work per pool
+    # (Server-Timing) and warns on a pile-up of requests in flight. The slow
+    # lines stay with SlowRequestLogMiddleware, which skips streams.
+    app.add_middleware(RequestTimingMiddleware, slow_s=math.inf)
     # Times the request through auth and the routes; compression sits outside it.
     app.add_middleware(SlowRequestLogMiddleware)
     # Added last, so outermost: an auth failure or a bodyless response passes

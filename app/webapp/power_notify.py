@@ -47,6 +47,7 @@ from src.host_shutdown import (
 )
 from src.notify import Notifier, NotifierError
 from src.notify_config import build_alarm_notifier
+from src.pools import BACKGROUND, run_in
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +138,7 @@ async def record_power_event(
         # _send_with_retry is blocking (network I/O + a sleep-based retry) and
         # this coroutine runs on an async tick sharing uvicorn's single event
         # loop — thread it off so a slow/failing send can't stall the webapp.
-        await asyncio.to_thread(_send_with_retry, notifier, _compose_message(lost, detail))
+        await run_in(BACKGROUND, _send_with_retry, notifier, _compose_message(lost, detail))
     except NotifierError as exc:  # delivery must never break the monitor loop
         logger.warning("⚠️ Telegram power notification failed: %s", exc)
 
@@ -309,13 +310,13 @@ async def _hibernate_after_grace(
     """
     await asyncio.sleep(grace_seconds)
     try:
-        hibernated = await asyncio.to_thread(hibernate_fn)
+        hibernated = await run_in(BACKGROUND, hibernate_fn)
         if hibernated:
             append_activity("power", {"event": "low_battery_hibernate"})
             return
         logger.warning("⚠️ Hibernate failed — falling back to a shutdown in %ds", _HIBERNATE_FALLBACK_GRACE_S)
         append_activity("power", {"event": "low_battery_hibernate_failed"})
-        await asyncio.to_thread(
+        await run_in(BACKGROUND,
             shutdown_fn,
             grace_seconds=_HIBERNATE_FALLBACK_GRACE_S,
             message="Low UPS battery — hibernate unavailable, shutting down to avoid data loss",
@@ -408,7 +409,7 @@ async def record_low_battery_shutdown(
         try:
             # See record_power_event: blocking send + retry, threaded off the
             # event loop so it can't stall the webapp.
-            await asyncio.to_thread(
+            await run_in(BACKGROUND,
                 _send_with_retry, notifier, _compose_shutdown_message(detail, fleet, prefs.tower_action, grace_seconds),
             )
         except NotifierError as exc:  # delivery must never break the monitor loop

@@ -348,6 +348,33 @@ views        = ["/"]
 [request_budget]
 visible_requests_per_minute = 35
 
+# Server loops that run while nobody is viewing, on purpose (project-scaffolding
+# docs/request-budget-ratchet.md, rule unwatched-loop). interval_s is the nominal
+# cadence; each why says where the real interval comes from.
+[[request_budget.loops]]
+path       = "app/webapp/_task_loop.py"
+function   = "run_loop"
+interval_s = 10
+why        = "the one shell every automation engine and sampler runs on: they act on schedules, the alarm and the samplers' history whether or not anyone is looking; each caller passes its own interval, 10 s to 5 min by default"
+
+[[request_budget.loops]]
+path       = "app/webapp/read_snapshot.py"
+function   = "ReadSnapshot.tick_forever"
+interval_s = 5
+why        = "wakes every tick_s but fetches only while the endpoint was read inside its demand window, so an unviewed snapshot makes no upstream call"
+
+[[request_budget.loops]]
+path       = "app/webapp/manager.py"
+function   = "WebappManager._wait_until_ready"
+interval_s = 0.4
+why        = "the tray's readiness probe of the uvicorn it just spawned; it ends at ready, at process exit or at the startup timeout"
+
+[[request_budget.loops]]
+path       = "app/webapp/manager.py"
+function   = "WebappManager.watch_until_resolved"
+interval_s = 0.4
+why        = "the tray's follow-up probe of a slow-booting uvicorn; it ends as soon as the process is ready or has exited"
+
 [e2e]
 static_pytest_target = "tests/e2e/test_smoke.py"
 static_browsers       = ["chromium"]

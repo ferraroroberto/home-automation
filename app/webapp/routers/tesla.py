@@ -19,7 +19,6 @@ state word.
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any, Dict, Literal
 
 from fastapi import APIRouter, Query
@@ -27,6 +26,7 @@ from fastapi import APIRouter, Query
 from app.webapp.tesla_sampler import load_sampler_config
 from src.devices import tesla_auth, tesla_history
 from src.devices.tesla_client import VehicleState
+from src.pools import HOT_POLL, run_in
 
 router = APIRouter()
 
@@ -59,7 +59,7 @@ def _status() -> Dict[str, Any]:
 @router.get("/api/tesla")
 async def get_tesla() -> Dict[str, Any]:
     """Whether the car is set up, its latest stored sample and the last state seen."""
-    return await asyncio.to_thread(_status)
+    return await run_in(HOT_POLL, _status)
 
 
 
@@ -82,10 +82,10 @@ def _sessions(limit: int) -> Dict[str, Any]:
 @router.get("/api/tesla/history")
 async def get_tesla_history(period: Literal["week", "month"] = "week") -> Dict[str, Any]:
     """Km, drive energy and charged energy (home and total) per week or month, oldest first."""
-    return await asyncio.to_thread(_history, period)
+    return await run_in(HOT_POLL, _history, period)
 
 
 @router.get("/api/tesla/sessions")
 async def get_tesla_sessions(limit: int = Query(10, ge=1, le=100)) -> Dict[str, Any]:
     """The latest drives and charging sessions, newest first."""
-    return await asyncio.to_thread(_sessions, limit)
+    return await run_in(HOT_POLL, _sessions, limit)

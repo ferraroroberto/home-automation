@@ -15,7 +15,6 @@ committed template.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import os
@@ -26,6 +25,7 @@ from typing import Callable, Optional
 from dotenv import load_dotenv
 
 from src.notify import Notifier, NotifierError, TelegramConfig, build_notifier
+from src.pools import BACKGROUND, run_in
 
 logger = logging.getLogger("notify_config")
 
@@ -142,7 +142,7 @@ async def notify_best_effort(
     failure can never break the automation loop that called it.
 
     ``presence_refresher._notify`` stays its own function: it runs inside a
-    worker thread already handed off by its caller's own ``asyncio.to_thread``
+    worker thread its caller already handed it to (``src.pools.run_in``)
     (not the event loop), so it sends directly rather than hopping threads
     again, which this async helper cannot do from there.
     """
@@ -152,6 +152,6 @@ async def notify_best_effort(
         return
     try:
         # notifier.send_text is blocking network I/O; keep it off the event loop.
-        await asyncio.to_thread(notifier.send_text, text)
+        await run_in(BACKGROUND, notifier.send_text, text)
     except NotifierError as exc:  # delivery must never break the caller's loop
         logger.warning("⚠️ %s Telegram notify failed: %s", label, exc)

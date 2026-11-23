@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any, Dict
 
 from fastapi import APIRouter
@@ -15,6 +14,7 @@ from src.energy.power_notify_prefs import (
     save_power_notify_prefs,
 )
 from src.energy.ups_client import UpsState, fetch_ups_state
+from src.pools import HOT_POLL, run_in
 
 router = APIRouter()
 
@@ -25,7 +25,7 @@ router = APIRouter()
 # tick plus one full 5 s timeout, so a slow tick never makes a reader fetch.
 UPS_SNAPSHOT: ReadSnapshot[UpsState] = ReadSnapshot(
     "ups",
-    lambda: asyncio.to_thread(fetch_ups_state),  # looked up per call, so tests can patch it
+    lambda: run_in(HOT_POLL, fetch_ups_state),  # looked up per call, so tests can patch it
     max_age_s=30.0,
     tick_s=10.0,
 )

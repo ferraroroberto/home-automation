@@ -14,7 +14,6 @@ rights → 403, already in that state → 409, bad action → 400, anything else
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any, Callable, Dict
 
@@ -32,6 +31,7 @@ from src.devices.hyperv_client import (
     start_vm,
     stop_vm,
 )
+from src.pools import HOT_POLL, ON_DEMAND, run_in
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ router = APIRouter()
 # instead. The PWA polls every 30 s, the staleness bound.
 HYPERV_SNAPSHOT: ReadSnapshot[HyperVState] = ReadSnapshot(
     "hyperv",
-    lambda: asyncio.to_thread(fetch_hyperv_state),  # looked up per call, so tests can patch it
+    lambda: run_in(HOT_POLL, fetch_hyperv_state),  # looked up per call, so tests can patch it
     max_age_s=30.0,
     tick_s=20.0,
 )
@@ -67,7 +67,7 @@ async def control_hyperv(action: str) -> Dict[str, Any]:
     if func is None:
         raise HTTPException(status_code=400, detail="action must be 'start' or 'stop'")
     try:
-        state = await asyncio.to_thread(func)
+        state = await run_in(ON_DEMAND, func)
     except HyperVConfigError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except HyperVNotFoundError as exc:

@@ -7,7 +7,7 @@ Elgato lights, per-circuit CT-clamp power — into the unified
 log's readings view has history to draw.
 
 Design mirrors the energy sampler: one asyncio task started in the FastAPI
-lifespan, blocking fetches/writes off the event loop via ``asyncio.to_thread``,
+lifespan, blocking fetches/writes off the event loop on the ``src.pools`` background pool,
 and a per-domain try/except so one flaky device never kills the loop. Each
 domain has its own ``.env`` gate, and the master ``TELEMETRY_SAMPLER_ENABLED``
 switch turns the whole thing off (e2e/dev runs).
@@ -32,6 +32,7 @@ from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop
 from src import telemetry
 from src import telemetry_adapters as adapters
+from src.pools import BACKGROUND, run_in
 
 logger = logging.getLogger(__name__)
 
@@ -90,14 +91,14 @@ async def _collect_plugs() -> list:
                 states.append({"device_id": dev_id, "reachable": False})
         return states
 
-    return adapters.plug_readings(await asyncio.to_thread(_read_all))
+    return adapters.plug_readings(await run_in(BACKGROUND, _read_all))
 
 
 async def _collect_ups() -> list:
     from src.energy.ups_client import fetch_ups_state
 
     return adapters.ups_readings(
-        await read_snapshot.read_fresh("ups", lambda: asyncio.to_thread(fetch_ups_state))
+        await read_snapshot.read_fresh("ups", lambda: run_in(BACKGROUND, fetch_ups_state))
     )
 
 
@@ -135,7 +136,7 @@ async def _sample_once(config: TelemetrySamplerConfig) -> int:
     for name in _enabled_domains(config):
         try:
             rows = await _COLLECTORS[name]()
-            written += await asyncio.to_thread(telemetry.record_readings, rows)
+            written += await run_in(BACKGROUND, telemetry.record_readings, rows)
         except Exception as exc:  # noqa: BLE001 — isolate per domain
             logger.warning("⚠️ Telemetry %s sample failed: %s", name, exc)
     return written
@@ -153,14 +154,14 @@ async def _tick(config: TelemetrySamplerConfig, state: _SamplerState) -> None:
     now = time.monotonic()
     if now - state.last_compact >= config.compact_interval_s:
         try:
-            await asyncio.to_thread(telemetry.compact_and_prune)
+            await run_in(BACKGROUND, telemetry.compact_and_prune)
         except Exception as exc:  # noqa: BLE001
             logger.warning("⚠️ Telemetry compaction failed: %s", exc)
         state.last_compact = now
 
 
 async def _run(config: TelemetrySamplerConfig) -> None:
-    await asyncio.to_thread(telemetry.init_db)
+    await run_in(BACKGROUND, telemetry.init_db)
     state = _SamplerState()
     await run_loop(
         lambda: _tick(config, state),

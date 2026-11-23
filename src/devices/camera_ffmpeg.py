@@ -27,6 +27,7 @@ from typing import Any, AsyncIterator, Callable, Coroutine, Dict, Optional
 
 from src._atomic_json import atomic_write_bytes
 from src._no_window import NO_WINDOW
+from src.pools import STREAM, run_in
 
 logger = logging.getLogger(__name__)
 
@@ -266,7 +267,7 @@ async def mjpeg_frames(
     pump_future = asyncio.run_coroutine_threadsafe(_pump(), loop)
     try:
         while True:
-            frame = await asyncio.get_running_loop().run_in_executor(None, frame_queue.get)
+            frame = await run_in(STREAM, frame_queue.get)
             if frame is _STREAM_DONE:
                 break
             yield frame
@@ -284,7 +285,7 @@ async def mjpeg_frames(
             except Exception:  # noqa: BLE001 — best-effort cleanup, never fatal
                 pass
 
-        await asyncio.get_running_loop().run_in_executor(None, _drain)
+        await run_in(STREAM, _drain)
 
 
 # --------------------------------------------------------------------------- #
