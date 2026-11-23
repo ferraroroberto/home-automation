@@ -71,7 +71,7 @@ poll = { src = "app/webapp/static/_vendored/poll", sha = "4952ab7d1b1528548ebeda
 request_budget_probe = { src = "tests/e2e/budget/_request_budget.py", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "tests/e2e/_request_budget.py" }
 self_restart = { src = "src/self_restart.py", sha = "564864cb95a8b416c16d1a1e1e9f31b9d5b2ec8e", dest = "src/self_restart.py" }
 request_budget_ratchet = { src = "scripts/request_budget_ratchet.py", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "scripts/request_budget_ratchet.py" }
-request_budget_scan = { src = "scripts/request_budget_scan.py", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "scripts/request_budget_scan.py" }
+request_budget_scan = { src = "scripts/request_budget_scan.py", sha = "5ba99b0a04b1b5d7b3689f8f7a59bd3fe625a9bc", dest = "scripts/request_budget_scan.py" }
 request_timing = { src = "src/request_timing.py", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "src/request_timing.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
