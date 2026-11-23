@@ -267,10 +267,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception as exc:  # noqa: BLE001 — a config check must never block boot
         logger.warning("⚠️  Quick-action config check failed: %s", exc)
 
-    # Blocking work runs on src.pools' named pools; what still lands on the
-    # loop's default pool (a library's DNS lookup, say) is timed the same way.
+    # What still lands on the default pool (a library's DNS lookup) is timed like src.pools.
     asyncio.get_running_loop().set_default_executor(default_executor())
-
     # One shared outbound pool for request-driven HA + Voice Transcriber calls.
     # In particular, live dictation sends a chunk every second; reusing this
     # pool avoids constructing a new client/socket pool for every chunk.
