@@ -83,6 +83,8 @@ windows_only_ratchet = { src = "scripts/windows_only_ratchet.py", sha = "5ba99b0
 # the gate's venv; a detector that cannot run exits 3, which fails the gate. Vendored
 # copies are duplicates by design, so they are excluded. Procedure + limits:
 # project-scaffolding docs/static-ratchet.md.
+build_info = { src = "src/build_info.py", sha = "1c1007fcd0b65b54342779250cb66975d57482e8", dest = "src/build_info.py" }
+restart_check = { src = "src/restart_check.py", sha = "1c1007fcd0b65b54342779250cb66975d57482e8", dest = "src/restart_check.py" }
 [static_ratchet]
 enabled  = true
 baseline = ".static-ratchet-baseline.json"
