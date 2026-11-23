@@ -25,7 +25,8 @@ home-automation/
 │   ├── energy/                # FusionSolar, Modbus, Athom circuits, PV forecast, tariff, sun position, UPS
 │   ├── devices/               # HVAC, Tuya plugs, cameras, Elgato, Hyper-V, PC fleet, blinds
 │   ├── voice/                 # voice satellite, Home Assistant client, web search
-│   └── notify/                # vendored notification package (byte-for-byte from project-scaffolding)
+│   ├── notify/                # vendored notification package (byte-for-byte from project-scaffolding)
+│   └── pools/                 # the named thread pools blocking work runs on (shared by every domain)
 ├── tests/                     # backend suite (cross-cutting tests at the top, the rest in domain subpackages) and the browser suite
 │   ├── api/                   # API smoke tests through FastAPI's TestClient; network/, presence/ and security/ hold those domains' routes
 │   ├── security/              # alarm, RISCO, scene capture, overrides and schedules

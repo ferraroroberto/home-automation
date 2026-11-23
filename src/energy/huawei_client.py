@@ -68,6 +68,7 @@ from dotenv import load_dotenv
 from src._backoff import BackoffTracker
 from src._env import _env_int
 from src._numbers import optional_float
+from src.pools import HOT_POLL, run_in
 
 logger = logging.getLogger("huawei")
 
@@ -448,7 +449,7 @@ async def _get_client(config: EnergyConfig) -> Any:
     async with _get_lock():
         if _client is not None:
             try:
-                if await asyncio.to_thread(_client.is_session_active):
+                if await run_in(HOT_POLL, _client.is_session_active):
                     return _client
             except Exception as exc:  # noqa: BLE001 - any transport error
                 logger.info("ℹ️ FusionSolar session check failed (%s); re-logging in", exc)
@@ -456,7 +457,7 @@ async def _get_client(config: EnergyConfig) -> Any:
             _plant_dn = None
 
         try:
-            _client = await asyncio.to_thread(_connect, config)
+            _client = await run_in(HOT_POLL, _connect, config)
         except Exception as exc:  # noqa: BLE001 - bad creds, portal down, captcha
             logger.warning("⚠️ FusionSolar login failed: %s", exc)
             _client = None
@@ -474,7 +475,7 @@ async def _resolve_plant_dn(client: Any, config: EnergyConfig) -> Optional[str]:
     if _plant_dn:
         return _plant_dn
     try:
-        plant_ids = await asyncio.to_thread(client.get_plant_ids)
+        plant_ids = await run_in(HOT_POLL, client.get_plant_ids)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️ Could not list FusionSolar plants: %s", exc)
         return None
@@ -536,7 +537,7 @@ async def _fetch_stats(config: EnergyConfig) -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        stats = await asyncio.to_thread(_read_plant, client, plant_dn)
+        stats = await run_in(HOT_POLL, _read_plant, client, plant_dn)
     except Exception as exc:  # noqa: BLE001 - portal error, schema change, timeout
         logger.warning("⚠️ FusionSolar read failed: %s", exc)
         # Same reasoning as above: a read failure this deep (past the client's

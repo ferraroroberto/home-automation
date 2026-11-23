@@ -18,7 +18,6 @@ imports all of them from here.
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import hashlib
 import html
@@ -42,6 +41,7 @@ from src.network.network_types import (
     _normalise_mac,
     _require,
 )
+from src.pools import HOT_POLL, run_in
 
 logger = logging.getLogger(__name__)
 
@@ -751,7 +751,7 @@ def _fetch_router_sync() -> tuple[RouterHealth, list[dict], list[dict]]:
 async def fetch_router() -> tuple[RouterHealth, list[dict], list[dict]]:
     """Async wrapper: router health, its lease rows, and its own wireless clients."""
     try:
-        return await asyncio.to_thread(_fetch_router_sync)
+        return await run_in(HOT_POLL, _fetch_router_sync)
     except NetworkConfigError:
         raise
     except Exception as exc:

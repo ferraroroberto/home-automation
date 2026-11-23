@@ -23,7 +23,7 @@ scheduled OS shutdown completes, :func:`app.webapp.power_notify.record_low_batte
 aborts it and resets the flag so a later outage can trigger again.
 
 ``fetch_ups_state`` is blocking (subprocess / Windows WMI), so it runs in a
-thread via ``asyncio.to_thread`` to keep the event loop free. Gated by
+thread on the ``src.pools`` background pool to keep the event loop free. Gated by
 ``POWER_MONITOR_ENABLED`` (default on), mirroring the other lifespan tasks.
 """
 
@@ -46,6 +46,7 @@ from app.webapp.power_notify import (
 )
 from src.devices.pc_fleet_prefs import PcFleetPrefs, load_pc_fleet_prefs
 from src.energy.ups_client import UpsState, fetch_ups_state
+from src.pools import BACKGROUND, run_in
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,7 @@ async def tick(
 
     # Shares the /api/ups snapshot's read, so the UPS tool runs once per its
     # max_age_s however many readers there are.
-    ups = await read_snapshot.read_fresh("ups", lambda: asyncio.to_thread(fetch_ups_state))
+    ups = await read_snapshot.read_fresh("ups", lambda: run_in(BACKGROUND, fetch_ups_state))
     if ups is None or not ups.available or ups.mains_online is None:
         return
     online = ups.mains_online

@@ -103,6 +103,7 @@ from dotenv import load_dotenv
 
 from src._env import _env_float
 from src.energy.huawei_client import EnergyState, _derive
+from src.pools import HOT_POLL, run_in
 
 logger = logging.getLogger("huawei.modbus")
 
@@ -344,7 +345,7 @@ def _note_source(source: str, detail: str = "") -> None:
 async def _attempt(config: ModbusConfig, host: str) -> EnergyState:
     """One bounded read cycle against ``host``."""
     inverter, meter = await asyncio.wait_for(
-        asyncio.to_thread(_read_blocks, config, host), timeout=_READ_BUDGET_S
+        run_in(HOT_POLL, _read_blocks, config, host), timeout=_READ_BUDGET_S
     )
     return _state_from_registers(inverter, meter)
 

@@ -55,7 +55,6 @@ for classification.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import time
@@ -135,6 +134,7 @@ from src.network.speedtest_prefs import (
     load_speedtest_prefs,
     save_speedtest_prefs,
 )
+from src.pools import HOT_POLL, ON_DEMAND, run_in
 
 logger = logging.getLogger(__name__)
 
@@ -163,12 +163,12 @@ async def _read_network(include_speedtest: bool = False) -> NetworkState:
         if d.mac and not is_randomized_mac(d.mac)
     ]
     try:
-        await asyncio.to_thread(record_and_snapshot, seen, now)
+        await run_in(HOT_POLL, record_and_snapshot, seen, now)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  network history update failed: %s", exc)
     # Feed the tile's latency/throughput sparklines.
     try:
-        await asyncio.to_thread(record_internet_sample, _internet_dict(state.internet), now)
+        await run_in(HOT_POLL, record_internet_sample, _internet_dict(state.internet), now)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  internet sample not recorded: %s", exc)
     return state
@@ -470,7 +470,7 @@ async def get_network(
     # so an ``important`` toggle shows even on an answer served from memory.
     # Best-effort: fall back to no history rather than 502.
     try:
-        known = await asyncio.to_thread(load_snapshot)
+        known = await run_in(HOT_POLL, load_snapshot)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  network history read failed: %s", exc)
         known = {}
@@ -493,7 +493,7 @@ async def get_network(
 async def get_internet_history() -> Dict[str, Any]:
     """Latency (24 h) and speed-test (30 d) series behind the tile's sparklines."""
     try:
-        return await asyncio.to_thread(internet_history)
+        return await run_in(HOT_POLL, internet_history)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  internet history read failed: %s", exc)
         raise HTTPException(status_code=502, detail="failed to read internet history")
@@ -518,7 +518,7 @@ router.include_router(
 async def post_access_point_reboot() -> Dict[str, Any]:
     """Reboot the NETGEAR access point (the UI gates this behind a confirm)."""
     try:
-        await asyncio.to_thread(reboot_access_point)
+        await run_in(ON_DEMAND, reboot_access_point)
     except NetworkConfigError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except NetworkCommandError as exc:
@@ -536,7 +536,7 @@ async def post_router_reboot() -> Dict[str, Any]:
     Drops all connections for ~5 min; strictly a deliberate user action (Phase 3).
     """
     try:
-        await asyncio.to_thread(reboot_router)
+        await run_in(ON_DEMAND, reboot_router)
     except NetworkConfigError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except NetworkCommandError as exc:
@@ -606,7 +606,7 @@ async def update_device_important(
     important device is never auto-pruned from it.
     """
     try:
-        await asyncio.to_thread(set_important, mac, payload.important)
+        await run_in(ON_DEMAND, set_important, mac, payload.important)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  Failed to set important for %s: %s", mac, exc)
         raise HTTPException(status_code=500, detail=f"failed to set important: {exc}")
@@ -735,7 +735,7 @@ def _survey_dict() -> Dict[str, Any]:
 async def get_survey() -> Dict[str, Any]:
     """Every recorded walk-test sample plus the per-room summary."""
     try:
-        return await asyncio.to_thread(_survey_dict)
+        return await run_in(HOT_POLL, _survey_dict)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  Failed to read the Wi-Fi survey: %s", exc)
         raise HTTPException(status_code=500, detail=f"failed to read survey: {exc}")
@@ -788,7 +788,7 @@ async def post_survey_sample(payload: SurveySamplePayload) -> Dict[str, Any]:
         )
 
     try:
-        return await asyncio.to_thread(
+        return await run_in(ON_DEMAND,
             record_sample,
             room=room,
             mac=mac,
@@ -822,9 +822,9 @@ async def post_survey_delete(payload: SurveyDeletePayload) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail="either 'sample_id' or 'room' is required")
     try:
         if payload.sample_id is not None:
-            deleted = 1 if await asyncio.to_thread(delete_sample, payload.sample_id) else 0
+            deleted = 1 if await run_in(ON_DEMAND, delete_sample, payload.sample_id) else 0
         else:
-            deleted = await asyncio.to_thread(delete_room, room)
+            deleted = await run_in(ON_DEMAND, delete_room, room)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  Failed to delete survey sample(s): %s", exc)
         raise HTTPException(status_code=500, detail=f"failed to delete: {exc}")

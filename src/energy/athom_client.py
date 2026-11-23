@@ -91,6 +91,7 @@ from dotenv import load_dotenv
 from src._env import _env_int
 from src.network.lan_discovery import browse_mdns, parse_host_port
 from src.network.network_types import _normalise_mac
+from src.pools import PROBE, run_in
 
 logger = logging.getLogger("athom")
 
@@ -378,7 +379,7 @@ async def discover_meters(force: bool = False) -> tuple[List[MeterEndpoint], Opt
     for attempt in (1, 2):
         window = _DISCOVERY_TIMEOUT_S if attempt == 1 else _DISCOVERY_RETRY_TIMEOUT_S
         try:
-            swept = await asyncio.to_thread(_discover_sync, window)
+            swept = await run_in(PROBE, _discover_sync, window)
         except AthomDiscoveryError as exc:
             error = str(exc)
             logger.warning("⚠️ Athom discovery unavailable: %s", exc)

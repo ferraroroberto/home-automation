@@ -20,6 +20,7 @@ import aiohttp
 from dotenv import load_dotenv
 
 from src.network.lan_discovery import browse_mdns, parse_host_port
+from src.pools import PROBE, run_in
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +142,7 @@ async def discover_endpoints(timeout_s: float = _DISCOVERY_TIMEOUT_S) -> list[El
     """Return configured endpoints plus any found by mDNS."""
     endpoints = {endpoint.light_id: endpoint for endpoint in _configured_endpoints()}
     try:
-        discovered = await asyncio.to_thread(_discover_sync, timeout_s)
+        discovered = await run_in(PROBE, _discover_sync, timeout_s)
     except ElgatoDiscoveryError:
         if endpoints:
             return list(endpoints.values())

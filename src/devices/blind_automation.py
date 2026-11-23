@@ -69,6 +69,7 @@ from src.devices.tuya_client import (
     list_devices,
     set_cover,
 )
+from src.pools import ON_DEMAND, run_in
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +198,7 @@ def _reassert_newest(
 
 
 async def _send_cover(device_id: str, action: CoverAction, command: int) -> BlindOutcome:
-    return await asyncio.to_thread(_send_newest, device_id, action, command)
+    return await run_in(ON_DEMAND, _send_newest, device_id, action, command)
 
 
 def cover_device_ids() -> List[str]:

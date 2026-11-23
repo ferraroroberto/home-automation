@@ -41,6 +41,7 @@ from typing import Optional
 
 from app.webapp._task_loop import run_loop
 from src._backoff import BackoffTracker
+from src.pools import BACKGROUND, run_in
 from src.voice.searxng_client import (
     SearxngCommandError,
     SearxngConfigError,
@@ -109,7 +110,7 @@ def _plan(state: SearxngState, wd: _WatchdogState) -> Optional[str]:
 async def _tick(wd: _WatchdogState) -> None:
     """One supervision poll. Isolates its own failures — never raises."""
     try:
-        state = await asyncio.to_thread(fetch_searxng_state)
+        state = await run_in(BACKGROUND, fetch_searxng_state)
     except Exception as exc:  # noqa: BLE001 — background task must survive
         message = f"status read failed: {exc}"
         if message != wd.last_error:
@@ -150,7 +151,7 @@ async def _attempt(action: str, wd: _WatchdogState) -> None:
     recover = start_searxng if action == "start" else restart_searxng
     logger.info("ℹ️  SearXNG watchdog attempting %s…", action)
     try:
-        state = await asyncio.to_thread(recover)
+        state = await run_in(BACKGROUND, recover)
     except SearxngConfigError as exc:
         # Config vanished under a running webapp; nothing to do but stay quiet.
         if str(exc) != wd.last_error:

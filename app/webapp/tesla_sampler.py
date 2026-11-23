@@ -20,7 +20,7 @@ fetched only while it is online. Then:
 Every Fleet API request is billed (Data: 500 requests per $1, with a $10
 monthly account discount), so the defaults are sized to stay inside the
 discount — the budget is worked through in ``docs/tesla.md`` — and every read
-logs its state and today's request count at info level. The blocking SQLite work runs via :func:`asyncio.to_thread`.
+logs its state and today's request count at info level. The blocking SQLite work runs on the ``src.pools`` background pool.
 """
 
 from __future__ import annotations
@@ -36,6 +36,7 @@ from dotenv import load_dotenv
 from app.webapp._task_loop import run_loop
 from src._env import _env_bool, _env_int
 from src.devices import tesla_client, tesla_history
+from src.pools import BACKGROUND, run_in
 
 logger = logging.getLogger(__name__)
 
@@ -123,23 +124,23 @@ async def _tick(config: TeslaSamplerConfig, history: tesla_history.TeslaHistoryC
         note_reading(state, config, reading, now)
         logger.info("🚗 Tesla %s (requests today: %d)", reading.state, tesla_client.REQUESTS.count)
         try:
-            await asyncio.to_thread(tesla_history.record_status, reading.state, reading.error)
+            await run_in(BACKGROUND, tesla_history.record_status, reading.state, reading.error)
             if reading.sample is not None:
-                await asyncio.to_thread(tesla_history.record_sample, reading.sample)
-                await asyncio.to_thread(tesla_history.refresh_sessions, history)
+                await run_in(BACKGROUND, tesla_history.record_sample, reading.sample)
+                await run_in(BACKGROUND, tesla_history.refresh_sessions, history)
         except Exception as exc:  # noqa: BLE001 — a store failure never kills the loop
             logger.warning("⚠️ Tesla history write failed: %s", exc)
     if now - state.last_prune >= _PRUNE_INTERVAL_S:
         state.last_prune = now
         try:
-            await asyncio.to_thread(tesla_history.prune, history)
+            await run_in(BACKGROUND, tesla_history.prune, history)
         except Exception as exc:  # noqa: BLE001
             logger.warning("⚠️ Tesla history prune failed: %s", exc)
 
 
 async def _run(config: TeslaSamplerConfig) -> None:
     history = tesla_history.load_history_config()
-    await asyncio.to_thread(tesla_history.init_db)
+    await run_in(BACKGROUND, tesla_history.init_db)
     state = CadenceState()
     await run_loop(
         lambda: _tick(config, history, state),

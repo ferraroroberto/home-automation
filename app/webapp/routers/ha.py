@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 import time
@@ -17,6 +16,7 @@ from pydantic import BaseModel
 
 from app.webapp.read_snapshot import ReadSnapshot
 from src import telemetry
+from src.pools import HOT_POLL, ON_DEMAND, run_in
 from src.voice.ha_client import HaClientError, HomeAssistantClient
 from src.voice.voice_client import (
     VoiceTranscriberClient,
@@ -94,7 +94,7 @@ async def get_home_assistant(request: Request) -> Dict[str, Any]:
     except HaClientError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc))
     try:
-        events = await asyncio.to_thread(
+        events = await run_in(HOT_POLL,
             telemetry.read_events, domain="ha_voice", limit=12
         )
     except Exception as exc:  # noqa: BLE001
@@ -145,7 +145,7 @@ async def announce(
         "detail": text,
     }
     try:
-        await asyncio.to_thread(
+        await run_in(ON_DEMAND,
             telemetry.record_event,
             "ha_voice",
             "push_to_talk",

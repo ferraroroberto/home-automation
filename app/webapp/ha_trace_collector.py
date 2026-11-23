@@ -13,6 +13,7 @@ import aiohttp
 
 from app.webapp._task_loop import run_loop
 from src import telemetry
+from src.pools import BACKGROUND, run_in
 from src.voice.ha_client import (
     HaClientError,
     HomeAssistantClient,
@@ -71,7 +72,7 @@ async def _record_new_runs(client: HomeAssistantClient, seen: _SeenRuns) -> int:
         payload = dict(interaction)
         if detail:
             payload["detail"] = detail
-        await asyncio.to_thread(
+        await run_in(BACKGROUND,
             telemetry.record_event,
             "ha_voice",
             "interaction",
@@ -121,7 +122,7 @@ async def _tick(client: HomeAssistantClient, seen: _SeenRuns, state: _CollectorS
 
 async def _collector_loop() -> None:
     seen = _SeenRuns()
-    await asyncio.to_thread(_seed_seen, seen)
+    await run_in(BACKGROUND, _seed_seen, seen)
     timeout = aiohttp.ClientTimeout(total=30)
     state = _CollectorState()
     async with aiohttp.ClientSession(timeout=timeout) as session:

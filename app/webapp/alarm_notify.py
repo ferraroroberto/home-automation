@@ -40,6 +40,7 @@ from src._atomic_json import write_json_atomic
 from src.activity_log import LOGS_DIR, append_activity
 from src.notify import Notifier, NotifierError
 from src.notify_config import build_alarm_notifier
+from src.pools import BACKGROUND, run_in
 from src.presence.presence_engine import note_manual_alarm_action
 from src.security.alarm_notify_prefs import AlarmNotifyPrefs, load_alarm_notify_prefs
 from src.security.risco_client import (
@@ -409,7 +410,7 @@ async def record_alarm_action(
         # notifier.send_text is blocking network I/O called from an async tick
         # sharing uvicorn's single event loop — thread it off so a slow/failing
         # send can't stall the webapp.
-        await asyncio.to_thread(
+        await run_in(BACKGROUND,
             notifier.send_text, _compose_message(source, action, outcome, error, detail)
         )
     except NotifierError as exc:  # delivery must never break the automation loop
@@ -508,7 +509,7 @@ async def record_security_event(
         return
     try:
         # See record_alarm_action: blocking send, threaded off the event loop.
-        await asyncio.to_thread(notifier.send_text, message)
+        await run_in(BACKGROUND, notifier.send_text, message)
     except NotifierError as exc:
         logger.warning("⚠️ Telegram security notification failed: %s", exc)
         return

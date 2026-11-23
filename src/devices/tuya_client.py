@@ -101,7 +101,7 @@ _COVER_TYPE_PRIORITY = (1, 8, 3, 4, 5, 7, 2, 6)
 _cover_types: dict[str, int] = {}
 _COVER_TYPES_FILE = Path(__file__).resolve().parents[2] / "config" / "tuya_cover_types.json"
 # Guards the cover-type store's load-modify-save in _remember_cover_type: the
-# webapp polls every blind concurrently via asyncio.to_thread, so two blinds
+# webapp polls every blind concurrently on worker threads, so two blinds
 # learning their type in the same poll can each load the same old contents
 # and the second write drops the first blind's entry.
 _cover_types_file_lock = threading.Lock()

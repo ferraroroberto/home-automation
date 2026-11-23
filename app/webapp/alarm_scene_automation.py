@@ -53,7 +53,6 @@ than a fourth divergent mechanism.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
@@ -71,6 +70,7 @@ from src._schedule_store import StoreUnreadableError
 from src.activity_log import append_activity
 from src.notify import NotifierError
 from src.notify_config import build_alarm_notifier, load_notify_config
+from src.pools import BACKGROUND, run_in
 from src.push_notifications import send_push
 from src.security.alarm_scene import (
     DEFAULT_HUB_BASE_URL,
@@ -255,7 +255,7 @@ async def _deliver(
     title = f"{emoji} Alarm scene — {where}"
     body = summary
     try:
-        await asyncio.to_thread(send_push, title, body, url="/")
+        await run_in(BACKGROUND, send_push, title, body, url="/")
     except Exception as exc:  # noqa: BLE001 — push is best-effort
         logger.warning("⚠️ alarm scene push failed: %s", exc)
 
@@ -266,10 +266,10 @@ async def _deliver(
     # Attach the first usable frame so the verdict arrives with the image; fall
     # back to a plain-text message if there's no frame or the photo upload fails.
     frame = next((c.frame for c in captures if c.ok and c.frame), None)
-    if frame is not None and await asyncio.to_thread(_send_telegram_photo, frame, caption):
+    if frame is not None and await run_in(BACKGROUND, _send_telegram_photo, frame, caption):
         return
     try:
-        await asyncio.to_thread(notifier.send_text, caption)
+        await run_in(BACKGROUND, notifier.send_text, caption)
     except NotifierError as exc:
         logger.warning("⚠️ alarm scene Telegram notify failed: %s", exc)
 

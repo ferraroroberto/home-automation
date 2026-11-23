@@ -26,7 +26,6 @@ app" for the full user-facing behavior and the slot-budget rationale.
 
 from __future__ import annotations
 
-import asyncio
 import dataclasses
 import ipaddress
 import logging
@@ -55,6 +54,7 @@ from src.network.network_client import (
     fetch_network_state,
 )
 from src.network.network_display_names import load_network_display_names, normalize_mac
+from src.pools import ON_DEMAND, run_in
 
 logger = logging.getLogger(__name__)
 
@@ -287,7 +287,7 @@ async def update_dhcp_override(mac: str, payload: DhcpOverridePayload) -> Dict[s
             detail=f"unknown category '{category}' — must be one of the configured ranges",
         )
     try:
-        await asyncio.to_thread(set_dhcp_override, mac, category)
+        await run_in(ON_DEMAND, set_dhcp_override, mac, category)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  Failed to save DHCP override for %s: %s", mac, exc)
         raise HTTPException(status_code=500, detail=f"failed to save override: {exc}")

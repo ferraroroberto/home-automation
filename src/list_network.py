@@ -26,6 +26,7 @@ from src.network.network_client import (
     fetch_network_state,
     reboot_access_point,
 )
+from src.pools import ON_DEMAND, run_in
 
 
 def _print_state(state: NetworkState) -> None:
@@ -154,7 +155,7 @@ async def main() -> None:
 
     if args.reboot_ap:
         print("Rebooting the access point...")
-        await asyncio.to_thread(reboot_access_point)
+        await run_in(ON_DEMAND, reboot_access_point)
         print("✅ reboot command accepted - the AP will drop for ~1-2 min.")
         return
 

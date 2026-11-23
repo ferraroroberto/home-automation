@@ -53,6 +53,7 @@ from src.devices.tuya_display_names import (
     set_tuya_display_name,
 )
 from src.devices.tuya_hidden import load_hidden_tuya_ids, set_tuya_hidden
+from src.pools import HOT_POLL, ON_DEMAND, run_in
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +168,7 @@ async def _read_all() -> List[Dict[str, Any]]:
 
     async def _bounded(info: TuyaDeviceInfo) -> Dict[str, Any]:
         async with semaphore:
-            return await asyncio.to_thread(_read_one, info)
+            return await run_in(HOT_POLL, _read_one, info)
 
     return list(await asyncio.gather(*(_bounded(info) for info in infos)))
 
@@ -246,7 +247,7 @@ async def pair_tuya() -> Dict[str, Any]:
     poll-tick cost.
     """
     try:
-        summary = await asyncio.to_thread(sync_devices_from_cloud)
+        summary = await run_in(ON_DEMAND, sync_devices_from_cloud)
     except TuyaCloudError as exc:
         # Configuration/authorization problem, not a device being offline —
         # 503 with the actionable text, matching the missing-devices.json path.
@@ -263,7 +264,7 @@ async def pair_tuya() -> Dict[str, Any]:
     # in the detail line and still serve the devices.
     found, recovered, scan_error = 0, [], ""
     try:
-        scan = await asyncio.to_thread(rescan_addresses)
+        scan = await run_in(ON_DEMAND, rescan_addresses)
         found = scan.get("found", 0)
         recovered = scan.get("updated", [])
     except Exception as exc:  # noqa: BLE001 — the cloud sync itself already landed
@@ -331,7 +332,7 @@ async def _settle_cover_move(action: str, outcomes: List[BlindOutcome]) -> None:
 async def control_switch(device_id: str, request: Request) -> Dict[str, Any]:
     on = await _bool_field(request, "on")
     try:
-        await asyncio.to_thread(set_switch, device_id, on)
+        await run_in(ON_DEMAND, set_switch, device_id, on)
     except TuyaDeviceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except (TuyaCommandError, TuyaConfigError) as exc:
@@ -365,7 +366,7 @@ async def _read_back(device_id: str) -> Optional[Dict[str, Any]]:
             (i for i in _unique_devices(list_devices()) if i.device_id == device_id),
             None,
         )
-        card = await asyncio.to_thread(_read_one, info, overrides, hidden_ids) if info else None
+        card = await run_in(ON_DEMAND, _read_one, info, overrides, hidden_ids) if info else None
     except Exception:  # noqa: BLE001 — read-back is best-effort
         card = None
     if card is None:
@@ -385,7 +386,7 @@ class BrightnessPayload(BaseModel):
 async def control_brightness(device_id: str, payload: BrightnessPayload) -> Dict[str, Any]:
     """Dim a Tuya light to 1–100 % of its own range."""
     try:
-        await asyncio.to_thread(set_brightness, device_id, payload.brightness)
+        await run_in(ON_DEMAND, set_brightness, device_id, payload.brightness)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except TuyaDeviceNotFoundError as exc:

@@ -33,6 +33,7 @@ from app.webapp._task_loop import run_loop
 from src.network.network_history import last_speed_sample_ts, record_internet_sample
 from src.network.network_host import fetch_internet_health
 from src.network.speedtest_prefs import NIGHTLY_HOUR, load_speedtest_prefs
+from src.pools import BACKGROUND, run_in
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ async def _run_test(now: datetime) -> bool:
         "download_mbps": health.download_mbps,
         "upload_mbps": health.upload_mbps,
     }
-    await asyncio.to_thread(record_internet_sample, sample, int(now.timestamp()))
+    await run_in(BACKGROUND, record_internet_sample, sample, int(now.timestamp()))
     if health.download_mbps is None and health.upload_mbps is None:
         return False
     logger.info(
@@ -88,7 +89,7 @@ async def _tick(state: _NightState, now: Optional[datetime] = None) -> None:
     if not load_speedtest_prefs().nightly_enabled:
         return
     now = now or datetime.now()
-    last_ts = await asyncio.to_thread(last_speed_sample_ts)
+    last_ts = await run_in(BACKGROUND, last_speed_sample_ts)
     if not is_due(now, last_ts):
         return
     if state.day != now.date():
