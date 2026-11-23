@@ -237,6 +237,8 @@ try {
     Invoke-Stage "ux surface ratchet" { & $py -m scripts.ux_surface_ratchet_gate }
     # Same exit-3 mapping for the request budget ratchet (tests/ratchets/test_request_budget_ratchet_gate.py).
     Invoke-Stage "request budget ratchet" { & $py -m scripts.request_budget_ratchet_gate }
+    # Same exit-3 mapping for the windows-only ratchet (tests/ratchets/test_windows_only_ratchet_gate.py).
+    Invoke-Stage "windows only ratchet" { & $py -m scripts.windows_only_ratchet_gate }
     # Runtime write probe, first half: what already sits untracked or ignored under the
     # code folders, so the probe after the test runs names only what they wrote. The
     # script's own --snapshot/--probe modes; the static stage above goes through the wrapper.

@@ -12,6 +12,7 @@ import pytest
 from src.network import network_client, network_host, network_router
 
 
+@pytest.mark.windows_only  # reads subprocess.CREATE_NO_WINDOW, which only exists on Windows
 def test_ping_hides_windows_console(monkeypatch) -> None:
     calls: list[dict[str, Any]] = []
 
