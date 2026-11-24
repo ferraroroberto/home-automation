@@ -45,6 +45,7 @@ def _expanded_index(index_path: Path) -> Tuple[str, List[_FileKey]]:
     keys: List[_FileKey] = [_file_key(index_path)]
 
     def _include(match: "re.Match[str]") -> str:
+        # path-sep-exempt: an include name parsed from this repo's own HTML, written with forward slashes
         partial = (static_root / match.group(1)).resolve()
         if static_root not in partial.parents:
             raise HTTPException(status_code=500, detail="index include outside static/")
