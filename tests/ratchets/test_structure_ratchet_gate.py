@@ -35,7 +35,7 @@ _exit = partial(real_exit, REAL_SCRIPT)
 # max_file_lines = 5 makes a small fixture an offender without a 1,000-line file.
 _FLEET = (
     'shape = "webapp-tray"\n'
-    '[structure_ratchet]\nenabled = true\nbaseline = ".structure-ratchet-baseline.json"\n'
+    '[structure_ratchet]\nenabled = true\nbaseline = ".ratchets/structure.json"\n'
     "max_file_lines = 5\n"
 )
 _TREE = {

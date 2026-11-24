@@ -22,7 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 REAL_SCRIPT = REPO_ROOT / "scripts" / "dead_code_ratchet.py"
 _exit = partial(helpers.real_exit, REAL_SCRIPT)
 
-_FLEET = '[dead_code_ratchet]\nenabled = true\nbaseline = ".dead-code-ratchet-baseline.json"\n'
+_FLEET = '[dead_code_ratchet]\nenabled = true\nbaseline = ".ratchets/dead-code.json"\n'
 _TREE = {"pkg/mod.py": "def used():\n    return 1\n\n\nprint(used())\n"}
 _DEAD = _TREE["pkg/mod.py"] + "\n\ndef orphan_helper():\n    return 2\n"
 

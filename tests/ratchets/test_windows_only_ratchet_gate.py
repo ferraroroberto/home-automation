@@ -25,7 +25,7 @@ _exit = partial(helpers.real_exit, REAL_SCRIPT)
 _FLEET = (
     "[windows_only_ratchet]\n"
     "enabled = true\n"
-    'baseline = ".windows-only-ratchet-baseline.json"\n'
+    'baseline = ".ratchets/windows-only.json"\n'
 )
 _TEST = "tests/test_spawn.py"
 _CLEAN = "def test_spawn():\n    assert True\n"

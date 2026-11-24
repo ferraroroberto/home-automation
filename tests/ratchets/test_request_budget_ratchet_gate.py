@@ -25,7 +25,7 @@ _exit = partial(helpers.real_exit, REAL_SCRIPT)
 _FLEET = (
     "[request_budget_ratchet]\n"
     "enabled = true\n"
-    'baseline = ".request-budget-ratchet-baseline.json"\n'
+    'baseline = ".ratchets/request-budget.json"\n'
     'rules = ["fixed-rate-poll"]\n'
 )
 _PAGE = "app/webapp/static/app.js"

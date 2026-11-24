@@ -25,7 +25,7 @@ _exit = partial(helpers.real_exit, REAL_SCRIPT)
 _FLEET = (
     "[usage_track_ratchet]\n"
     "enabled = true\n"
-    'baseline = ".usage-track-ratchet-baseline.json"\n'
+    'baseline = ".ratchets/usage-track.json"\n'
     'rules = ["untracked-control"]\n'
 )
 _PAGE = "app/webapp/static/index.html"

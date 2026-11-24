@@ -26,7 +26,7 @@ _exit = partial(helpers.real_exit, REAL_SCRIPT)
 _FLEET = (
     "[ux_surface_ratchet]\n"
     "enabled = true\n"
-    'baseline = ".ux-surface-ratchet-baseline.json"\n'
+    'baseline = ".ratchets/ux-surface.json"\n'
     'map = "docs/ux-surfaces.yaml"\n'
     'paths = ["app/webapp/static/**"]\n'
 )
@@ -58,7 +58,7 @@ def _git_add(repo: Path) -> None:
 def _repo(tmp_path: Path) -> Path:
     repo = helpers.make_git_repo(tmp_path, _FLEET, {_PAGE: _MARKED, "docs/ux-surfaces.yaml": _MAP})
     (repo / "scripts").mkdir(exist_ok=True)
-    for name in ("ux_surface_ratchet.py", "ux_surface_map.py", "usage_track_scan.py"):
+    for name in ("ux_surface_ratchet.py", "ux_surface_map.py", "usage_track_scan.py", "ratchet_baseline.py"):
         (repo / "scripts" / name).write_bytes((REPO_ROOT / "scripts" / name).read_bytes())
     generated = subprocess.run(
         [sys.executable, str(repo / "scripts" / "ux_surface_map.py")],

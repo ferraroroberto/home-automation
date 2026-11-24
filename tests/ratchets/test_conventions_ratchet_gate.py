@@ -25,7 +25,7 @@ _exit = partial(helpers.real_exit, REAL_SCRIPT)
 _FLEET = (
     "[conventions_ratchet]\n"
     "enabled = true\n"
-    'baseline = ".conventions-ratchet-baseline.json"\n'
+    'baseline = ".ratchets/conventions.json"\n'
     'rules = ["logging-not-print", "no-drive-path"]\n'
 )
 _TREE = {"src/mod.py": "import logging\n\nlog = logging.getLogger(__name__)\n\n\ndef used() -> int:\n    log.info('x')\n    return 1\n"}

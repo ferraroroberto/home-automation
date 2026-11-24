@@ -28,7 +28,7 @@ from tests._ratchet_gate_helpers import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REAL_SCRIPT = REPO_ROOT / "scripts" / "comment_ratchet.py"
 
-_FLEET = '[comment_ratchet]\nenabled = true\nbaseline = ".comment-ratchet-baseline.json"\n'
+_FLEET = '[comment_ratchet]\nenabled = true\nbaseline = ".ratchets/comment.json"\n'
 
 
 def _git_repo(tmp_path: Path, files: dict[str, str]) -> Path:
