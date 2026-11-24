@@ -31,7 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 REAL_SCRIPT = REPO_ROOT / "scripts" / "instruction_ratchet.py"
 _exit = partial(real_exit, REAL_SCRIPT)
 
-_FLEET = '[instruction_ratchet]\nenabled = true\nbaseline = ".instruction-ratchet-baseline.json"\n'
+_FLEET = '[instruction_ratchet]\nenabled = true\nbaseline = ".ratchets/instruction.json"\n'
 _CLEAN = "# Project\n\nRun the gate before shipping.\n"
 _HIT = _CLEAN + "\nAlways double-check your work.\n"
 

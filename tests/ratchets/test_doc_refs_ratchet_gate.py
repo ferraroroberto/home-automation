@@ -30,7 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 REAL_SCRIPT = REPO_ROOT / "scripts" / "doc_refs_ratchet.py"
 _exit = partial(real_exit, REAL_SCRIPT)
 
-_FLEET = '[doc_refs_ratchet]\nenabled = true\nbaseline = ".doc-refs-ratchet-baseline.json"\n'
+_FLEET = '[doc_refs_ratchet]\nenabled = true\nbaseline = ".ratchets/doc-refs.json"\n'
 _TREE = {"scripts/real.py": "x = 1\n", "docs/guide.md": "Run `scripts/real.py`.\n"}
 _STALE = "Run `scripts/real.py` or `scripts/gone.py`.\n"
 
