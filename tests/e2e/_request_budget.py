@@ -18,6 +18,11 @@ to finish before the next, so a self-scheduling poll (next tick armed when the
 read settles) is measured at its real cadence. Boot reads are not counted: the
 minute starts once the page has loaded and gone quiet.
 
+A count the probe cannot establish raises `RequestBudgetUnknown`, never a
+pass: no `.fleet.toml`, no usable `visible_requests_per_minute`, or a request
+that never settles. pytest reports it as an error, apart from a broken budget's
+failure.
+
 Vendor-verbatim (manifest key `request_budget_probe`); needs Playwright 1.45+
 for `page.clock`.
 """
@@ -53,6 +58,10 @@ _HIDE_SCRIPT = """
   };
 })();
 """
+
+
+class RequestBudgetUnknown(RuntimeError):
+    """The budget or the count could not be established: its own state, never a pass."""
 
 
 @dataclass
@@ -97,7 +106,9 @@ class _Counter:
         deadline = time.monotonic() + SETTLE_TIMEOUT_S
         while self.pending:
             if time.monotonic() > deadline:
-                raise AssertionError(f"{len(self.pending)} request(s) still out after {SETTLE_TIMEOUT_S}s")
+                raise RequestBudgetUnknown(
+                    f"NOT CONFIRMED: {len(self.pending)} request(s) still out after {SETTLE_TIMEOUT_S}s"
+                )
             self.page.wait_for_timeout(10)
         self.page.evaluate("() => new Promise((resolve) => queueMicrotask(resolve))")
 
@@ -151,9 +162,17 @@ def assert_request_budget(reading: BudgetReading, visible_max: int) -> None:
 
 
 def visible_budget(repo_root: Path) -> int:
-    """`[request_budget] visible_requests_per_minute` from the repo's `.fleet.toml`."""
-    data = tomllib.loads((repo_root / ".fleet.toml").read_text(encoding="utf-8"))
-    value = data.get("request_budget", {}).get("visible_requests_per_minute")
+    """`[request_budget] visible_requests_per_minute` from the repo's `.fleet.toml`; unknown, never a default."""
+    path = repo_root / ".fleet.toml"
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+        raise RequestBudgetUnknown(f"NOT CONFIRMED: {path} could not be read ({exc})") from exc
+    table = data.get("request_budget", {})
+    value = table.get("visible_requests_per_minute") if isinstance(table, dict) else None
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-        raise AssertionError("set [request_budget] visible_requests_per_minute (a whole number) in .fleet.toml")
+        raise RequestBudgetUnknown(
+            "NOT CONFIRMED: no visible budget; set [request_budget] visible_requests_per_minute"
+            f" (a whole number, 0 or more) in {path} (found {value!r})"
+        )
     return value
