@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from playwright.sync_api import Page, Route
 
 from tests.e2e._request_budget import (
@@ -34,7 +33,6 @@ def _answer_every_api(page: Page) -> None:
     page.route("**/api/**", answer)
 
 
-@pytest.mark.chromium_only
 def test_home_keeps_the_request_budget(page: Page, base_url: str) -> None:
     _answer_every_api(page)
     reading = measure_request_budget(page, f"{base_url}/")
