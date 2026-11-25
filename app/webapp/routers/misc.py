@@ -11,14 +11,17 @@ from __future__ import annotations
 import hashlib
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, List, Tuple
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
+from src.health_routes import health_router
 
 router = APIRouter()
+# The fleet's standard liveness and build identity routes (vendored).
+router.include_router(health_router(service="home-automation-webapp", identity=BUILD_INFO.as_dict()))
 
 
 # A line holding only this comment is replaced by the named file's contents:
@@ -112,12 +115,3 @@ async def index(request: Request) -> Response:
     return HTMLResponse(stamped, headers=headers)
 
 
-@router.get("/healthz")
-async def healthz() -> Dict[str, Any]:
-    return {"ok": True, "service": "home-automation-webapp"}
-
-
-@router.get("/api/version")
-async def version() -> Dict[str, str]:
-    """Build identity for the PWA footer. Stable across requests; cached at load."""
-    return BUILD_INFO.as_dict()
