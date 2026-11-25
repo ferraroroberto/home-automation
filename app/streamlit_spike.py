@@ -10,7 +10,7 @@ around only as a fast data/debug view.
 
 Run with::
 
-    .\launch_app.bat                                                   # Windows
+    .\scripts\launch_app.bat                                           # Windows
     & .\.venv\Scripts\python.exe -m streamlit run app/streamlit_spike.py  # Windows (direct)
     ./.venv/bin/python -m streamlit run app/streamlit_spike.py            # POSIX
 

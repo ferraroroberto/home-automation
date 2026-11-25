@@ -2,10 +2,10 @@
 REM ==========================================================
 REM  Launch the Streamlit POC SPIKE locally (browser opens automatically).
 REM  This is the throwaway data/debug view, NOT the product — the real
-REM  control surface is the FastAPI + PWA webapp (see webapp.bat).
+REM  control surface is the FastAPI + PWA webapp (see scripts\webapp.bat).
 REM ==========================================================
 title Home Automation - MELCloud (spike)
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 echo ============================================================
 echo   Home Automation - MELCloud Streamlit SPIKE (local)
