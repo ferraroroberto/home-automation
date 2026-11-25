@@ -30,7 +30,7 @@ action-row = { src = "app/webapp/static/_vendored/action-row", sha = "8f15c49560
 notify = { src = "src/notify", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "src/notify" }
 usage-log = { src = "app/webapp/static/_vendored/usage-log", sha = "6c8ae06472edc4c7448a767656060cd2b79cefe9", dest = "app/webapp/static/_vendored/usage-log" }
 usage_log = { src = "src/usage_log.py", sha = "78635aa74a92b9622326cb53992e0634fbaf6246", dest = "src/usage_log.py" }
-usage_track_ratchet = { src = "scripts/usage_track_ratchet.py", sha = "48db2132dab2dfc38b6154948ca17fd1f4b9232f", dest = "scripts/usage_track_ratchet.py" }
+usage_track_ratchet = { src = "scripts/usage_track_ratchet.py", sha = "732c304a4735d4e654f5acb3b6f53b7db67d47ef", dest = "scripts/usage_track_ratchet.py" }
 usage_track_scan = { src = "scripts/usage_track_scan.py", sha = "adf0375e08a186330196b8d6be7b8b51078a73ae", dest = "scripts/usage_track_scan.py" }
 button = { src = "app/webapp/static/_vendored/button", sha = "7a1a7561331edded3dc91128a42076fb3b0262f8", dest = "app/webapp/static/_vendored/button" }
 segmented = { src = "app/webapp/static/_vendored/segmented", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app/webapp/static/_vendored/segmented" }
@@ -85,6 +85,7 @@ windows_only_ratchet = { src = "scripts/windows_only_ratchet.py", sha = "48db213
 # copies are duplicates by design, so they are excluded. Procedure + limits:
 # project-scaffolding docs/static-ratchet.md.
 build_info = { src = "src/build_info.py", sha = "1c1007fcd0b65b54342779250cb66975d57482e8", dest = "src/build_info.py" }
+health_routes = { src = "src/health_routes.py", sha = "732c304a4735d4e654f5acb3b6f53b7db67d47ef", dest = "src/health_routes.py" }
 restart_check = { src = "src/restart_check.py", sha = "f8c2f66eae7a69f3c834386579702ed5b747d7af", dest = "src/restart_check.py" }
 ratchet_baseline = { src = "scripts/ratchet_baseline.py", sha = "48db2132dab2dfc38b6154948ca17fd1f4b9232f", dest = "scripts/ratchet_baseline.py" }
 
@@ -246,7 +247,7 @@ code_folders = ["src", "app", "scripts", "assets"]
 [usage_track_ratchet]
 enabled  = true
 baseline = ".ratchets/usage-track.json"
-rules    = ["untracked-control", "untracked-sheet", "dynamic-id", "usage-log-wired"]
+rules    = ["untracked-control", "untracked-sheet", "dynamic-id", "usage-log-wired", "health-routes-wired"]
 
 # [request_budget_ratchet] -- scripts/request_budget_ratchet.py (with its reader
 # scripts/request_budget_scan.py) fails when a file's count of a request-budget hit rises
