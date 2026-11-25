@@ -17,7 +17,7 @@ home-automation/
 │   │       ├── vendor/        # third-party browser libraries, unmodified
 │   │       └── _vendored/     # components copied byte-for-byte from project-scaffolding
 │   ├── tray/                  # the Windows tray that owns the webapp lifecycle
-│   └── streamlit_spike.py     # standalone Streamlit POC, launched by launch_app.bat
+│   └── streamlit_spike.py     # standalone Streamlit POC, launched by scripts/launch_app.bat
 ├── src/                       # UI-free domain logic; shared helpers, cross-domain stores and the list_* CLIs at the top level
 │   ├── security/              # RISCO client, alarm scene, overrides, schedules and their stores
 │   ├── presence/              # presence engine and block state, iCloud client, roster, places, travel time, calendar
@@ -39,7 +39,7 @@ home-automation/
 │   ├── harness/               # tests of the e2e harness's own helpers
 │   └── e2e/                   # Playwright suite and its fixtures
 ├── docs/                      # durable reference, one topic per file
-├── scripts/                   # gate, ratchets, cert and auth helpers, ops tools, launch_app.sh (POSIX Streamlit spike launcher)
+├── scripts/                   # gate, ratchets, cert and auth helpers, ops tools, the Streamlit spike launchers (launch_app.bat, launch_app.sh) and webapp.bat (headless server)
 ├── config/                    # committed *.sample.json templates; the live stores are gitignored
 └── assets/                    # tray icon, Stream Deck art and the Home Assistant integration (home_assistant/) — not served by the PWA
 ```

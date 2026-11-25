@@ -48,7 +48,7 @@ with the router set, as an exhaustive per-endpoint table would.
 Run with::
 
     & .\.venv\Scripts\python.exe -m uvicorn app.webapp.server:app --host 0.0.0.0 --port 8447
-    .\webapp.bat                                              # HTTPS when cert present
+    .\scripts\webapp.bat                                      # HTTPS when cert present
 """
 
 from __future__ import annotations

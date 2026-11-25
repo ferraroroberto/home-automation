@@ -4,11 +4,11 @@ REM ============================================================================
 REM  WEBAPP - the FastAPI + PWA control dashboard (the product).
 REM  HTTPS on :8447 when webapp\certificates\cert.pem is present, else HTTP.
 REM  Binds 0.0.0.0 so the LAN + Tailscale hostnames reach it.
-REM  Daily use will be via the tray (issue #2); this bat is dev / headless.
+REM  Daily use is via the tray; this bat (in scripts\) is dev / headless.
 REM ============================================================================
 
 setlocal
-set "SCRIPT_DIR=%~dp0"
+for %%I in ("%~dp0..") do set "SCRIPT_DIR=%%~fI\"
 set "VENV_PY=%SCRIPT_DIR%.venv\Scripts\python.exe"
 if not exist "%VENV_PY%" (
     echo [ERROR] .venv missing. Create it and run: .venv\Scripts\pip install -r requirements.txt

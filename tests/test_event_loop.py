@@ -75,7 +75,7 @@ def test_e2e_autoboot_wires_loop_factory():
 
 
 def test_webapp_bat_wires_loop_factory():
-    src = (_REPO_ROOT / "webapp.bat").read_text(encoding="utf-8")
+    src = (_REPO_ROOT / "scripts" / "webapp.bat").read_text(encoding="utf-8")
     assert "app.webapp.event_loop:selector_loop_factory" in src
     assert "--loop" in src
 

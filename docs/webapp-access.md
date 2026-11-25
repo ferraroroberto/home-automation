@@ -16,14 +16,14 @@ provision the cert (auto-detects this machine's MagicDNS name):
 ```
 
 This writes `cert.pem` / `key.pem` into `webapp/certificates/`; restart the
-webapp (`tray.bat --restart`, or `webapp.bat`) and open
+webapp (`tray.bat --restart`, or `scripts/webapp.bat`) and open
 `https://<pc>.<tailnet>.ts.net:8447`.
 
 > **Auto-renew (no calendar reminder needed).** A Let's Encrypt leaf is valid
 > ~90 days, so renewal is automated rather than manual: both boot paths run
 > `gen_tailscale_cert.py --check` on startup, which re-issues the cert only
 > when it is a `.ts.net` cert expiring within 30 days (a no-op otherwise). The
-> tray-owned webapp self-heals on its next restart; `webapp.bat` does the same.
+> tray-owned webapp self-heals on its next restart; `scripts/webapp.bat` does the same.
 > A cert file that cannot be read (corrupt PEM, `cryptography` missing) is
 > reported as unknown, not as healthy: `--check` prints a `[WARN]` and exits 1,
 > and the tray logs it as a failed renewal check.

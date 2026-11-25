@@ -112,10 +112,10 @@ lives in one place, [`CLAUDE.md`](CLAUDE.md) under **Restart recipe**.
 ### Headless / dev (no tray)
 
 ```powershell
-.\webapp.bat                                                      # Windows
+.\scripts\webapp.bat                                              # Windows
 ```
 
-`webapp.bat` binds `0.0.0.0:8447` and serves **HTTPS** when
+`scripts/webapp.bat` binds `0.0.0.0:8447` and serves **HTTPS** when
 `webapp/certificates/cert.pem` exists (see [Webapp access](docs/webapp-access.md)),
 otherwise plain HTTP. Invoke uvicorn directly if you prefer:
 
@@ -208,7 +208,7 @@ sharing only `src/devices/melcloud_client.py`. Not the real UI; kept only as a f
 way to eyeball the data.
 
 ```powershell
-.\launch_app.bat                                                  # Windows (http://localhost:8501)
+.\scripts\launch_app.bat                                          # Windows (http://localhost:8501)
 ```
 
 ```bash
