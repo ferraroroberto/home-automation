@@ -16,11 +16,13 @@ from typing import Callable, Dict, List, Optional
 import pytest
 
 from app.webapp import blind_schedules as engine
-from app.webapp._task_loop import BACKGROUND_TASKS
+from app.webapp._task_loop import BACKGROUND_TASKS, spawn_background_task
 from src.devices import blind_automation as B
 from src.devices.tuya_client import TuyaCommandError, TuyaDeviceInfo
 
 MONDAY_0800 = datetime(2026, 10, 5, 8, 0, 30)
+# The backoff is faked, so a drain takes milliseconds: seconds mean a stuck task.
+DRAIN_TIMEOUT_S = 10.0
 
 
 class FakeLan:
@@ -116,6 +118,57 @@ def test_a_newer_command_cancels_the_pending_retry(lan, clock) -> None:
     assert report.superseded == ["blind-2"] and report.failed == []
 
 
+# ------------------------------------------------------------------- drain
+async def _drain(timeout: float = DRAIN_TIMEOUT_S) -> None:
+    """Await the background tasks; fail, naming them, if any outlives ``timeout``.
+
+    ``asyncio.wait`` always yields to the loop. ``gather`` over tasks that have
+    all finished does not, so a task whose ``discard`` callback has not run yet
+    would keep ``while BACKGROUND_TASKS`` spinning forever.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while BACKGROUND_TASKS:
+        done, _ = await asyncio.wait(
+            set(BACKGROUND_TASKS), timeout=max(0.0, deadline - loop.time())
+        )
+        for task in done:
+            task.result()  # a task that raised fails the test
+        if BACKGROUND_TASKS and loop.time() >= deadline:
+            names = ", ".join(sorted(
+                f"{t.get_name()} ({t.get_coro().__qualname__})" for t in BACKGROUND_TASKS
+            ))
+            raise AssertionError(f"background task(s) still pending after {timeout:g}s: {names}")
+
+
+def test_drain_returns_when_a_finished_task_is_not_yet_discarded() -> None:
+    async def _done_at_once() -> None:
+        return None
+
+    async def _go() -> None:
+        task = spawn_background_task(_done_at_once(), name="done-retry")
+        await asyncio.sleep(0)
+        # The window that hung the suite: finished, discard callback still queued.
+        assert task.done() and task in BACKGROUND_TASKS
+        await _drain()
+        assert task not in BACKGROUND_TASKS
+
+    asyncio.run(_go())
+
+
+def test_drain_fails_naming_a_task_that_never_finishes() -> None:
+    async def _never_done() -> None:
+        while True:
+            await asyncio.sleep(0)  # all the fake clock's sleep does
+
+    async def _go() -> None:
+        spawn_background_task(_never_done(), name="stuck-retry")
+        with pytest.raises(AssertionError, match=r"still pending after 0\.2s: stuck-retry"):
+            await _drain(timeout=0.2)
+
+    asyncio.run(_go())
+
+
 # ------------------------------------------------------------------ engine
 @pytest.fixture
 def house(monkeypatch: pytest.MonkeyPatch, lan: FakeLan, clock: FakeClock, tmp_path):
@@ -143,8 +196,7 @@ def _run_then_drain(coro_factory, check_before_drain=None):
         result = await coro_factory()
         if check_before_drain is not None:
             check_before_drain()
-        while BACKGROUND_TASKS:
-            await asyncio.gather(*list(BACKGROUND_TASKS))
+        await _drain()
         return result
 
     return asyncio.run(_go())
@@ -347,8 +399,7 @@ def test_stop_cancels_the_pending_retry_of_a_failed_move(house, lan, clock) -> N
         outcomes = await B.move_blinds("open")
         await engine.settle_manual_move("open", outcomes)
         await B.move_blinds("stop")
-        while BACKGROUND_TASKS:
-            await asyncio.gather(*list(BACKGROUND_TASKS))
+        await _drain()
 
     asyncio.run(_go())
     assert [a for d, a in lan.sent if d == "blind-2"] == ["open", "stop"]
@@ -362,8 +413,7 @@ def test_manual_move_retries_on_the_backoff_then_notifies_once(house, lan, clock
         outcomes = await B.move_blinds("close")
         await engine.settle_manual_move("close", outcomes)
         assert clock.slept == [] and BACKGROUND_TASKS  # the tap answered at once
-        while BACKGROUND_TASKS:
-            await asyncio.gather(*list(BACKGROUND_TASKS))
+        await _drain()
 
     asyncio.run(_go())
     assert clock.slept == [30.0, 60.0, 120.0, 240.0]
