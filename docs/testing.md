@@ -112,6 +112,17 @@ device). Runs in two
 projections — Chromium desktop + WebKit on an iPhone 14 (except the Chromium-only
 modules below).
 
+**No write reaches the server.** The disposable instance runs on the checkout's
+own config and `.env`, so a write that got through could move a real device or
+rewrite a config file. An autouse context route (`fixtures/stubs.py`) sits under
+every page stub: any `POST`, `PUT`, `PATCH` or `DELETE` under `/api/` that no
+stub answered is refused and fails the test, naming the method and path. Stub
+each write a test makes; the usage log's posts are the one exception, answered
+there. **Reads are not covered:** a `GET` no stub answers is served by the
+instance, which can query a real device or cloud when the checkout is configured
+for one. A checkout holding only the `*.sample.json` twins and no `.env` has
+nothing real to query.
+
 Test modules are scoped **one per feature area** — `test_tabs.py` is pure nav
 and tab switching, while tab content lives in
 `test_home_tab.py`, `test_home_assistant.py`, `test_ac_tab.py`, `test_energy_tab.py`,
@@ -136,8 +147,8 @@ Steps run as follows:
   whose steps are all marked carries the mark itself, so it is deselected there.
 - A step that takes an extra argument (a theme, a width) is passed
   `(step, {"theme": "dark"})`.
-- `page.clock.install()` cannot be undone, so a step that installs the clock is
-  the **last** step of its flow, and a flow holds one.
+- `page.clock.install()` cannot be undone, so the steps that install the clock
+  are the **last** steps of their flow, and the flow carries `own_context`.
 - A module-level fixture that installs routes runs once per test, so a flow
   passes the same call as `run_flow(..., per_step=...)` to repeat it before
   every step.
@@ -234,7 +245,11 @@ To make a panel's loading state observable, hold its read with
 `tests/e2e/_app.py`'s `hold_reads()` and release it once the loading state is
 asserted. Don't add a fixed delay: every test would sleep through it, and a
 loaded machine can outrun it. To test anything that waits on a poll interval,
-drive it with `page.clock` instead of waiting it out.
+drive it with `page.clock` instead of waiting it out, and the same to prove that
+nothing happens after an action: install the clock, then `run_for` past the
+window. A clock jump covers timers only, so wait for a response in flight with
+`expect_response` first. The one fixed wait is the boot canary's in
+`test_smoke.py`: it runs on the real clock and covers reads still in flight.
 
 Rendered-geometry design checks (44px effective touch targets, non-overlap,
 horizontal overflow, live Chart.js tick/cue config) go through

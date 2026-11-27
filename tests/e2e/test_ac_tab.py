@@ -126,26 +126,18 @@ def _units_snapshot_paints_before_live_refresh(
             },
         },
     }
-    page.add_init_script("""
-        const snapshotStore = %s;
-        const liveUnits = %s;
-        localStorage.setItem('home-automation.apiSnapshots.v1', JSON.stringify(snapshotStore));
-        const originalFetch = window.fetch.bind(window);
-        window.fetch = function(input, init) {
-          const url = typeof input === 'string' ? input : input.url;
-          if (url === '/api/units' || url.endsWith('/api/units')) {
-            return new Promise(function(resolve) {
-              setTimeout(function() {
-                resolve(new Response(JSON.stringify({units: liveUnits}), {
-                  status: 200,
-                  headers: {'Content-Type': 'application/json'},
-                }));
-              }, 1000);
-            });
-          }
-          return originalFetch(input, init);
-        };
-    """ % (json.dumps(snapshot_store), json.dumps(live_units)))
+    page.add_init_script(
+        "localStorage.setItem('home-automation.apiSnapshots.v1', JSON.stringify(%s));"
+        % json.dumps(snapshot_store)
+    )
+    page.route(
+        "**/api/units",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json",
+            body=json.dumps({"units": live_units}),
+        ),
+    )
+    release = hold_reads(page, "/api/units")
     mock_energy()
     boot_home(page, base_url)
 
@@ -154,7 +146,8 @@ def _units_snapshot_paints_before_live_refresh(
     expect(page.locator("#acSummary")).to_contain_text("Snapshot Office")
     expect(page.locator("#acFeedback")).to_contain_text("Last saved")
 
-    expect(page.locator("#acSummary")).to_contain_text("Live Office", timeout=4000)
+    release()
+    expect(page.locator("#acSummary")).to_contain_text("Live Office")
     expect(page.locator("#acSummary")).not_to_contain_text("Snapshot Office")
     expect(page.locator("#acFeedback")).not_to_contain_text("Last saved")
 
@@ -189,6 +182,13 @@ def _unit_posts(page: Page, unit_id: str) -> List[Dict]:
     return posts
 
 
+def _run_out_the_settle_window(page: Page) -> None:
+    """Jump the page clock past the setpoint settle timer, so a late write is
+    sent now; the round trip after it lets that request be reported."""
+    page.clock.run_for(900)
+    page.evaluate("() => fetch('/healthz').then((r) => r.status)")
+
+
 def _power_toggle_posts_and_rerenders(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
@@ -213,6 +213,7 @@ def _setpoint_taps_settle_into_one_post(
     posts = _unit_posts(page, "unit-1")
     _open_sheet(page, base_url, "unit-1")  # set 24.0, step 0.5
     expect(page.locator("#detailSetTemp")).to_have_text("24.0°")
+    page.clock.install()
     with page.expect_request(
         lambda r: r.url.endswith("/api/units/unit-1") and r.method == "POST"
     ) as info:
@@ -222,7 +223,7 @@ def _setpoint_taps_settle_into_one_post(
     assert info.value.post_data_json == {"set_temperature": 25.0}
     # The row follows the read-back, and no second write trails the first.
     expect(_row(page, "unit-1").locator(".action-row-meta")).to_contain_text("25.0")
-    page.wait_for_timeout(900)
+    _run_out_the_settle_window(page)
     assert posts == [{"set_temperature": 25.0}]
 
 
@@ -251,8 +252,9 @@ def _setpoint_stops_at_the_mode_minimum(
     expect(page.locator("#detailTempDown")).to_be_disabled()
     expect(page.locator("#detailTempUp")).to_be_enabled()
     expect(page.locator("#detailSetTemp")).to_have_text("16.0°")
+    page.clock.install()
     page.locator("#detailDone").click()
-    page.wait_for_timeout(300)
+    _run_out_the_settle_window(page)
     assert posts == [], "the floor must not POST a sub-range value"
 
 
@@ -685,6 +687,7 @@ def _pinned_units_filter_home_as_one_row_with_power_only(
     expect(rows).to_have_count(3)
 
 
+@pytest.mark.own_context  # installs the page clock, which a shared context would keep
 def test_ac_tab(
     page: Page, base_url: str, request: pytest.FixtureRequest,
 ) -> None:
@@ -696,9 +699,7 @@ def test_ac_tab(
         _ac_poll_failure_preserves_units_and_disables_actions,
         _units_snapshot_paints_before_live_refresh,
         _power_toggle_posts_and_rerenders,
-        _setpoint_taps_settle_into_one_post,
         _closing_the_sheet_sends_a_dialled_setpoint,
-        _setpoint_stops_at_the_mode_minimum,
         _fan_segment_posts_fan_speed,
         _offline_unit_row_is_marked_and_inert,
         _offline_unit_row_marked_on_home_summary,
@@ -718,4 +719,7 @@ def test_ac_tab(
         _name_saves_on_enter,
         _schedules_add_through_the_staged_editor,
         _pinned_units_filter_home_as_one_row_with_power_only,
+        # Clock-driven, so last: the page clock stays installed.
+        _setpoint_taps_settle_into_one_post,
+        _setpoint_stops_at_the_mode_minimum,
     )

@@ -472,9 +472,15 @@ def _blinds_group_buttons_move_every_listed_blind(
     expect(page.locator("#toast")).to_contain_text("All blinds stopped")
     assert len(held) == 1  # All up is still unanswered
     # The late answer to the earlier All up doesn't overwrite Stop's toast.
-    held[0].fulfill(status=200, content_type="application/json",
-                    body='{"action": "open", "results": [], "failed": 0}')
-    page.wait_for_timeout(300)
+    # Wait until the page has that answer, then jump the clock so a toast it
+    # deferred would show too.
+    page.clock.install()
+    with page.expect_response("**/api/tuya/covers") as late:
+        held[0].fulfill(status=200, content_type="application/json",
+                        body='{"action": "open", "results": [], "failed": 0}')
+    late.value.finished()
+    page.evaluate("() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")
+    page.clock.run_for(300)
     expect(page.locator("#toast")).to_contain_text("All blinds stopped")
 
 
@@ -632,6 +638,7 @@ def _power_card_keeps_its_height_when_the_plugs_land(
     assert settled_px - first_px <= LAYOUT_10_MAX_GROWTH_PX, (first_px, settled_px)
 
 
+@pytest.mark.own_context  # installs the page clock, which a shared context would keep
 def test_plugs_and_blinds(
     page: Page, base_url: str, request: pytest.FixtureRequest,
 ) -> None:
@@ -655,8 +662,9 @@ def test_plugs_and_blinds(
         _switch_toggle_round_trips,
         _blind_has_labelled_controls,
         _blind_stop_and_reverse_stay_pressable_mid_move,
-        _blinds_group_buttons_move_every_listed_blind,
         _tuya_light_lists_under_lights_not_plugs,
         _add_device_is_gated_by_a_confirm,
         _tuya_dimmer_brightness_slider_round_trips,
+        # Clock-driven, so last: the page clock stays installed.
+        _blinds_group_buttons_move_every_listed_blind,
     )
