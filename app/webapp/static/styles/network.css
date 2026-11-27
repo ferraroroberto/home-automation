@@ -37,7 +37,6 @@
   display: inline-flex; align-items: center; justify-content: center; gap: 0.45em;
 }
 .net-speed-btn .icon { width: 1.15em; height: 1.15em; }
-.net-speed-btn.is-busy { opacity: 0.7; cursor: progress; }
 /* Nightly speed-test switch: the notify-toggle row, inset by the tile's
    own padding rather than the notification cards'. */
 .net-nightly { padding: 0; margin-top: 8px; }
