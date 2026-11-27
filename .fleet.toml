@@ -383,6 +383,9 @@ why        = "the tray's follow-up probe of a slow-booting uvicorn; it ends as s
 static_pytest_target = "tests/e2e/test_smoke.py"
 static_browsers       = ["chromium"]
 full_pytest_target    = "tests/e2e"
+# Collected nodes the suite may reach before /e2e asks for an audit. A ratchet
+# at the current size: lower it when the suite is trimmed.
+test_budget           = 64
 # The gate's per-test START/DONE/FAILED history (gitignored; written by
 # scripts/verify-before-ship.ps1 via tests/_progress_log.py). Every gate run
 # that reached the browser phase, from any checkout, is appended to the primary
@@ -416,6 +419,16 @@ extensions = ["html"]
 [[e2e.rule]]
 tier   = "full"
 prefix = "tests/e2e/"
+
+# Loaded by the browser suite as well as the unit tests (the root conftest, and
+# the gate's progress log the e2e conftest imports), so the tests/ -> none rule
+# below must not take them.
+[[e2e.rule]]
+tier = "full"
+path = "tests/conftest.py"
+[[e2e.rule]]
+tier = "full"
+path = "tests/_progress_log.py"
 
 # The whole FastAPI + PWA product: routers (the browser's API surface),
 # middleware, server boot, the static tree, and the automation modules that
@@ -478,39 +491,14 @@ path = ".fleet.toml"
 [[e2e.rule]]
 tier = "none"
 path = ".gitignore"
+# Ratchet baselines: read by the gate's ratchet stages, never by the suite.
+[[e2e.rule]]
+tier   = "none"
+prefix = ".ratchets/"
+# Editor/search ignore list.
 [[e2e.rule]]
 tier = "none"
-path = ".ratchets/static.json"
-[[e2e.rule]]
-tier = "none"
-path = ".ratchets/docs.json"
-[[e2e.rule]]
-tier = "none"
-path = ".ratchets/comment.json"
-[[e2e.rule]]
-tier = "none"
-path = ".ratchets/structure.json"
-[[e2e.rule]]
-tier = "none"
-path = ".ratchets/instruction.json"
-[[e2e.rule]]
-tier = "none"
-path = ".ratchets/doc-refs.json"
-[[e2e.rule]]
-tier = "none"
-path = ".ratchets/dead-code.json"
-[[e2e.rule]]
-tier = "none"
-path = ".ratchets/conventions.json"
-[[e2e.rule]]
-tier = "none"
-path = ".ratchets/runtime-write.json"
-[[e2e.rule]]
-tier = "none"
-path = ".ratchets/usage-track.json"
-[[e2e.rule]]
-tier = "none"
-path = ".ratchets/ux-surface.json"
+path = ".ignore"
 # The .env template: documentation of the keys, never read at runtime (the
 # app reads .env itself) -- unclassified, it failed safe to full (#778).
 [[e2e.rule]]
