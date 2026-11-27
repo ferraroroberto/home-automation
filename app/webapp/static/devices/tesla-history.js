@@ -131,7 +131,7 @@ function fmtWhen(tsSeconds) {
 }
 
 function pctSpan(a, b) {
-  return a == null || b == null ? null : Math.round(a) + ' → ' + Math.round(b) + ' %';
+  return a == null || b == null ? null : Math.round(a) + ' to ' + Math.round(b) + ' %';
 }
 
 const PLACE_WORDS = { home: 'Home', away: 'Away', unknown: 'Place unknown' };

@@ -580,6 +580,7 @@ export const els = {
   netTrends: document.getElementById('netTrends'),
   netNightlyToggle: document.getElementById('netNightlyToggle'),
   netSpeedBtn: document.getElementById('netSpeedBtn'),
+  netSheetToast: document.getElementById('netSheetToast'),
   netApName: document.getElementById('netApName'),
   netApMeta: document.getElementById('netApMeta'),
   netApReboot: document.getElementById('netApReboot'),

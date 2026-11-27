@@ -32,6 +32,8 @@ import {
 import { jsonApi, isAuthRequired, reportActionFailure } from '../api.js';
 import { esc, fmtMbps, fmtMs, fmtPct, friendlyError } from '../format.js';
 import { icon } from '../_vendored/icons/icons.js';
+import { runBusy } from '../_vendored/button/busy.js';
+import { showToast } from '../_vendored/toast/toast.js';
 import {
   restoreSnapshot,
   saveSnapshot,
@@ -74,7 +76,6 @@ import { sheet } from '../sheet.js';
 
 const POLL_MS = 15_000;
 
-let speedtestRunning = false;
 let networkLoading = false;
 const networkView = createViewState('network');
 // Last successful speed-test result, kept across polls (a normal poll returns
@@ -380,23 +381,20 @@ export function restoreNetworkSnapshot() {
 }
 
 // ----------------------------------------------------------------- actions
+// runBusy owns the busy look and ignores a second tap in flight. The success
+// toast follows it because loadNetwork reports a failed read by returning
+// false, not by throwing, and runBusy's own `done` would announce that too.
+// Every message goes to the sheet's toast, which the dialog does not cover.
 async function runSpeedTest() {
-  if (speedtestRunning) return;
-  speedtestRunning = true;
-  els.netSpeedBtn.disabled = true;
-  els.netSpeedBtn.classList.add('is-busy');
-  const original = els.netSpeedBtn.innerHTML;
-  els.netSpeedBtn.textContent = 'Testing… (~13 s)';
-  try {
-    if (await loadNetwork({ speedtest: true })) toast('Speed test complete', 'success');
-  } catch (exc) {
-    reportActionFailure(exc, 'Speed test failed');
-  } finally {
-    speedtestRunning = false;
-    els.netSpeedBtn.disabled = false;
-    els.netSpeedBtn.classList.remove('is-busy');
-    els.netSpeedBtn.innerHTML = original;
-  }
+  const host = els.netSheetToast;
+  const run = await runBusy(els.netSpeedBtn, function () {
+    return loadNetwork({ speedtest: true });
+  }, {
+    start: 'Testing… (~13 s)',
+    fail: function (exc) { return 'Speed test failed: ' + friendlyError(exc); },
+    host: host,
+  });
+  if (run.ok && run.value) showToast('Speed test complete', undefined, { host: host });
 }
 
 async function rebootAccessPoint() {
