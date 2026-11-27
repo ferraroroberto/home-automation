@@ -2,8 +2,43 @@
 
 from __future__ import annotations
 
+from typing import Iterator, List
+from urllib.parse import urlsplit
+
 import pytest
-from playwright.sync_api import Page, Route
+from playwright.sync_api import BrowserContext, Page, Route
+
+_READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+# The vendored usage log posts views and taps from every page, so it is
+# answered here rather than counted: no test is about it, and none should
+# have to stub it.
+_USAGE_PATH = "/api/usage/events"
+
+
+def refuse_unstubbed_writes(context: BrowserContext, refused: List[str]) -> None:
+    """Answer every write no page stub claimed, so it never reaches the server.
+
+    The disposable instance runs on this checkout's real config and ``.env``,
+    so a write that reaches it can move a real device or rewrite a config file.
+    A context route sits under every page route: it sees only what no stub
+    answered, including what one passed on with ``route.fallback()``. Each
+    refused write is recorded in ``refused`` as ``"METHOD /path"``.
+    """
+
+    def handle(route: Route) -> None:
+        request = route.request
+        if request.method in _READ_METHODS:
+            route.fallback()
+            return
+        path = urlsplit(request.url).path
+        if path == _USAGE_PATH:
+            route.fulfill(status=204)
+            return
+        refused.append(f"{request.method} {path}")
+        route.fulfill(status=503, content_type="application/json",
+                      body='{"detail":"write not stubbed"}')
+
+    context.route("**/api/**", handle)
 
 
 def stub_home_assistant_api(page: Page) -> None:
@@ -122,3 +157,15 @@ def install_baseline_stubs(page: Page) -> None:
 @pytest.fixture(autouse=True)
 def _baseline_stubs(page: Page) -> None:
     install_baseline_stubs(page)
+
+
+@pytest.fixture(autouse=True)
+def _no_unstubbed_writes(page: Page) -> Iterator[None]:
+    """Fail a test whose page sent a write that no stub answered."""
+    refused: List[str] = []
+    refuse_unstubbed_writes(page.context, refused)
+    yield
+    assert not refused, (
+        "unstubbed write(s) refused before they reached the server -- stub each one: "
+        f"{sorted(set(refused))}"
+    )
