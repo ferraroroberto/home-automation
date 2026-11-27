@@ -10,9 +10,9 @@ flip back, and the knob markup survives the repaint.
 
 DOM-state only, so ``chromium_only``. Switches are tapped only inside a
 staged or instant dialog against stubbed APIs: no real plug, network setting,
-detector or circuit is ever written (a staged switch writes nothing until
-Save, and nothing here presses Save; the Wi-Fi switch is the one instant
-switch and its PUT is stubbed).
+detector, circuit or presence entry is ever written (a staged switch writes
+nothing until Save, and nothing here presses Save; the presence and Wi-Fi
+switches save on tap and their PUTs are stubbed).
 """
 
 from __future__ import annotations
@@ -111,6 +111,7 @@ def _presence_hidden_switch(
     mock_energy()
     mock_security()
     mock_presence()
+    page.route("**/api/presence/entity-hidden", _json_ok)
     boot_home(page, base_url)
     page.locator("#tabSecurity").click()
     page.locator("#presenceList .presence-row .action-row-main").first.click()

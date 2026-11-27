@@ -162,6 +162,9 @@ def test_real_rules_route_representative_paths() -> None:
     assert tier("app/webapp/presence_automation.py") == "full"
     assert tier("app/tray/tray.py") == "full"
     assert tier("tests/e2e/conftest.py") == "full"  # #593 trap
+    # The browser suite loads both, so the tests/ -> none rule must not reach them.
+    assert tier("tests/conftest.py") == "full"
+    assert tier("tests/_progress_log.py") == "full"
     assert tier("tests/e2e/test_smoke.py") == "surface"
     assert tier("tests/e2e/conftest.py") == "full"
 
@@ -197,6 +200,9 @@ def test_real_rules_route_representative_paths() -> None:
     assert tier(".ratchets/doc-refs.json") == "skip"
     assert tier(".ratchets/dead-code.json") == "skip"
     assert tier(".ratchets/conventions.json") == "skip"
+    assert tier(".ratchets/request-budget.json") == "skip"
+    assert tier(".ratchets/windows-only.json") == "skip"
+    assert tier(".ignore") == "skip"
     assert tier("tray.bat") == "skip"
 
     # Mixed real diff (backend-only) -> skip; add a router/webapp file -> full.
