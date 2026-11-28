@@ -130,7 +130,7 @@ The signal that new code is live is the `GET /api/version` `git_sha` matching `g
 
 ## Verification gate
 
-One command runs byte-compile, every ratchet declared in `.fleet.toml` (static, docs, comment, structure, instruction, doc-refs, dead-code, conventions, runtime-write, usage-track, ux-surface and request-budget) and the backend suite, then routes the browser (e2e) phase to the size of the diff (docs-only skips it; a real UI change runs Chromium + WebKit):
+One command runs byte-compile, every ratchet declared in `.fleet.toml` (static, docs, comment, structure, instruction, doc-refs, dead-code, conventions, runtime-write, usage-track, ux-surface, probe-fake and request-budget) and the backend suite, then routes the browser (e2e) phase to the size of the diff (docs-only skips it; a real UI change runs Chromium + WebKit):
 
 ```powershell
 & .\scripts\verify-before-ship.ps1
