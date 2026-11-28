@@ -31,6 +31,7 @@
 /scripts/instruction_frontmatter.py
 /scripts/instruction_ratchet.py
 /scripts/instruction_repeats.py
+/scripts/personal_data_ratchet.py
 /scripts/ratchet_baseline.py
 /scripts/request_budget_ratchet.py
 /scripts/request_budget_scan.py
@@ -66,4 +67,5 @@
 /tests/e2e/_request_budget.py
 /tests/e2e/_shot.py
 /tests/e2e/_surface.py
+/tests/host/_synthetic_host.py
 # END vendored-copies
