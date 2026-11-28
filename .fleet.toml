@@ -75,6 +75,7 @@ request_budget_ratchet = { src = "scripts/request_budget_ratchet.py", sha = "48d
 request_budget_scan = { src = "scripts/request_budget_scan.py", sha = "5ba99b0a04b1b5d7b3689f8f7a59bd3fe625a9bc", dest = "scripts/request_budget_scan.py" }
 request_timing = { src = "src/request_timing.py", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "src/request_timing.py" }
 windows_only_ratchet = { src = "scripts/windows_only_ratchet.py", sha = "48db2132dab2dfc38b6154948ca17fd1f4b9232f", dest = "scripts/windows_only_ratchet.py" }
+probe_fake_ratchet = { src = "scripts/probe_fake_ratchet.py", sha = "d650fd33d779c20a27a13456156b87924b6c097c", dest = "scripts/probe_fake_ratchet.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet.py, which fails on a
@@ -273,6 +274,16 @@ handler_dirs = ["app/webapp/routers"]
 [windows_only_ratchet]
 enabled  = true
 baseline = ".ratchets/windows-only.json"
+
+# [probe_fake_ratchet] -- scripts/probe_fake_ratchet.py fails when a declared process or
+# port probe has no test faking each platform (win32, darwin), or changes against
+# origin/main with no change to a test that imports it. Only this repo's own probes are
+# listed: a vendored copy's fakes belong to project-scaffolding. Exit 3 is "not
+# confirmed", never clean. Mechanism: project-scaffolding docs/probe-fake-ratchet.md.
+[probe_fake_ratchet]
+enabled  = true
+baseline = ".ratchets/probe-fake.json"
+probes   = ["app/webapp/manager.py", "app/webapp/process_stats.py"]
 
 # [ux_surface_ratchet] -- scripts/ux_surface_ratchet.py fails when the web app's HTML or JS
 # gains a surface root (a <dialog>, a dialog/menu/tabpanel role, a popover) with no constant

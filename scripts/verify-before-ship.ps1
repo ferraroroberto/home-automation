@@ -66,6 +66,11 @@
                             default pool, or a web app without the request-timing
                             middleware rises beyond .request-budget-ratchet-baseline.json.
                             Whole tree, never routed; exit 3 is NOT CONFIRMED and fails.
+     10f. probe fake ratchet — no declared process or port probe without a test faking
+                            each platform, beyond .ratchets/probe-fake.json, and no
+                            probe changed with no change to a test that imports it.
+                            Prints MAC_NIGHTLY: unverified when the diff touches a
+                            probe. Exit 3 is NOT CONFIRMED and fails.
      11. pytest (non-e2e) — the fast backend suite (tests/, excluding tests/e2e);
                             stages 11-13 run inside the runtime write probe
                             (--snapshot before, --probe after), which fails on any
@@ -239,6 +244,8 @@ try {
     Invoke-Stage "request budget ratchet" { & $py -m scripts.request_budget_ratchet_gate }
     # Same exit-3 mapping for the windows-only ratchet (tests/ratchets/test_windows_only_ratchet_gate.py).
     Invoke-Stage "windows only ratchet" { & $py -m scripts.windows_only_ratchet_gate }
+    # Same exit-3 mapping for the probe fake ratchet (tests/ratchets/test_probe_fake_ratchet_gate.py).
+    Invoke-Stage "probe fake ratchet" { & $py -m scripts.probe_fake_ratchet_gate }
     # Runtime write probe, first half: what already sits untracked or ignored under the
     # code folders, so the probe after the test runs names only what they wrote. The
     # script's own --snapshot/--probe modes; the static stage above goes through the wrapper.
